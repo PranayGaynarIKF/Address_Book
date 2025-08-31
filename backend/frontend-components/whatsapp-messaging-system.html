@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Messaging System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { 
+            margin: 0; 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; 
+        }
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .card-shadow {
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        .input-focus:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        .btn-secondary {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            transition: all 0.3s ease;
+        }
+        .btn-secondary:hover {
+            background: #f1f5f9;
+            border-color: #cbd5e1;
+        }
+        .contact-card {
+            transition: all 0.3s ease;
+        }
+        .contact-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+        }
+        .tag-badge {
+            transition: all 0.3s ease;
+        }
+        .tag-badge:hover {
+            transform: scale(1.05);
+        }
+        
+        /* Ensure buttons are clickable */
+        .contact-card button {
+            pointer-events: auto !important;
+            cursor: pointer !important;
+            position: relative !important;
+            z-index: 10 !important;
+        }
+        
+        /* Debug styling */
+        .contact-card button:hover {
+            background: #4f46e5 !important;
+            transform: translateY(-1px) !important;
+        }
+    </style>
+</head>
+<body class="gradient-bg min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-white mb-3">
+                📱 WhatsApp Messaging System
+            </h1>
+            <p class="text-xl text-blue-100">
+                Select tags, choose contacts, and send WhatsApp messages
+            </p>
+            <!-- Debug Buttons -->
+            <div class="flex gap-4 justify-center mt-4">
+                <button onclick="testModal()" class="px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600">
+                    🧪 Test Modal (Debug)
+                </button>
+                <button onclick="testContactButton()" class="px-6 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600">
+                    🧪 Test Contact Button
+                </button>
+                <button onclick="testButtonClickability()" class="px-6 py-3 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600">
+                    🧪 Test Button Clickability
+                </button>
+                <button onclick="testDirectButtonClick()" class="px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600">
+                    🧪 Test Direct Click
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="max-w-7xl mx-auto">
+            <!-- Tag Selection Section -->
+            <div class="bg-white rounded-2xl card-shadow p-8 mb-8">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6">
+                    🏷️ Select Tags to View Contacts
+                </h2>
+                
+                <!-- Tag Selection -->
+                <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
+                    <button onclick="selectTag('customers')" class="tag-badge bg-blue-100 text-blue-800 px-4 py-3 rounded-lg font-semibold hover:bg-blue-200">
+                        👥 Customers
+                    </button>
+                    <button onclick="selectTag('leads')" class="tag-badge bg-green-100 text-green-800 px-4 py-3 rounded-lg font-semibold hover:bg-green-200">
+                        🎯 Leads
+                    </button>
+                    <button onclick="selectTag('vip')" class="tag-badge bg-purple-100 text-purple-800 px-4 py-3 rounded-lg font-semibold hover:bg-purple-200">
+                        ⭐ VIP
+                    </button>
+                    <button onclick="selectTag('prospects')" class="tag-badge bg-orange-100 text-orange-800 px-4 py-3 rounded-lg font-semibold hover:bg-orange-200">
+                        🔍 Prospects
+                    </button>
+                    <button onclick="selectTag('partners')" class="tag-badge bg-indigo-100 text-indigo-800 px-4 py-3 rounded-lg font-semibold hover:bg-indigo-200">
+                        🤝 Partners
+                    </button>
+                    <button onclick="selectTag('all')" class="tag-badge bg-gray-100 text-gray-800 px-4 py-3 rounded-lg font-semibold hover:bg-gray-200">
+                        🌐 All Contacts
+                    </button>
+                </div>
+
+                <!-- Search Contacts -->
+                <div class="flex gap-4">
+                    <input
+                        type="text"
+                        id="searchContacts"
+                        placeholder="🔍 Search contacts by name, phone, or email..."
+                        class="flex-1 px-4 py-3 border border-gray-300 rounded-lg input-focus"
+                        onkeyup="searchContacts()"
+                    />
+                    <button onclick="clearSearch()" class="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg font-semibold hover:bg-gray-200">
+                        🗑️ Clear
+                    </button>
+                </div>
+            </div>
+
+            <!-- Contacts Display Section -->
+            <div id="contactsSection" class="hidden">
+                <div class="bg-white rounded-2xl card-shadow p-8 mb-8">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold text-gray-800">
+                            👥 Contacts for Tag: <span id="selectedTagName" class="text-blue-600"></span>
+                        </h2>
+                        <span class="text-gray-600">
+                            <span id="contactCount">0</span> contacts found
+                        </span>
+                    </div>
+
+                    <!-- Contacts Grid -->
+                    <div id="contactsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <!-- Contacts will be populated here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- WhatsApp Message Modal -->
+            <div id="messageModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div class="bg-white rounded-2xl card-shadow p-8 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-2xl font-bold text-gray-800">
+                            📱 Send WhatsApp Message
+                        </h3>
+                        <button onclick="closeMessageModal()" class="text-gray-500 hover:text-gray-700 text-2xl">
+                            ✕
+                        </button>
+                    </div>
+
+                    <!-- Contact Info -->
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                        <h4 class="font-semibold text-blue-800 mb-2">Selected Contact:</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <span class="font-semibold text-blue-700">Name:</span>
+                                <span class="ml-2 text-blue-600" id="modalContactName"></span>
+                            </div>
+                            <div>
+                                <span class="font-semibold text-blue-700">Phone:</span>
+                                <span class="ml-2 text-blue-600" id="modalContactPhone"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Message Form -->
+                    <form id="whatsappForm" class="space-y-6">
+                        <!-- Template Selection -->
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                🏷️ Select Template
+                            </label>
+                            <select
+                                id="templateSelect"
+                                class="w-full px-4 py-3 border border-gray-300 rounded-lg input-focus"
+                                onchange="updateTemplatePreview()"
+                            >
+                                <option value="">-- Select a template --</option>
+                                <option value="basic">Basic Welcome</option>
+                                <option value="follow_up">Follow Up</option>
+                                <option value="reminder">Reminder</option>
+                                <option value="promotion">Promotion</option>
+                                <option value="custom">Custom Message</option>
+                            </select>
+                        </div>
+
+                        <!-- Template Preview -->
+                        <div id="templatePreview" class="hidden">
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                📝 Template Preview
+                            </label>
+                            <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                                <p id="previewText" class="text-gray-700"></p>
+                            </div>
+                        </div>
+
+                        <!-- Custom Message (if custom template) -->
+                        <div id="customMessageSection" class="hidden">
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                ✍️ Custom Message
+                            </label>
+                            <textarea
+                                id="customMessage"
+                                rows="4"
+                                placeholder="Type your custom message here..."
+                                class="w-full px-4 py-3 border border-gray-300 rounded-lg input-focus"
+                            ></textarea>
+                        </div>
+
+                        <!-- Language Selection -->
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                🌐 Language
+                            </label>
+                            <select
+                                id="language"
+                                class="w-full px-4 py-3 border border-gray-300 rounded-lg input-focus"
+                            >
+                                <option value="en">🇺🇸 English (en)</option>
+                                <option value="hi">🇮🇳 Hindi (hi)</option>
+                                <option value="gu">🇮🇳 Gujarati (gu)</option>
+                                <option value="mr">🇮🇳 Marathi (mr)</option>
+                                <option value="bn">🇮🇳 Bengali (bn)</option>
+                                <option value="ta">🇮🇳 Tamil (ta)</option>
+                                <option value="te">🇮🇳 Telugu (te)</option>
+                                <option value="kn">🇮🇳 Kannada (kn)</option>
+                                <option value="ml">🇮🇳 Malayalam (ml)</option>
+                                <option value="pa">🇮🇳 Punjabi (pa)</option>
+                            </select>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="flex gap-4 pt-4">
+                            <button
+                                type="submit"
+                                id="sendButton"
+                                class="flex-1 btn-primary text-white py-4 px-6 rounded-lg font-semibold text-lg"
+                            >
+                                📤 Send WhatsApp Message
+                            </button>
+
+                            <button
+                                type="button"
+                                onclick="closeMessageModal()"
+                                class="px-8 py-4 btn-secondary rounded-lg font-semibold text-lg"
+                            >
+                                ❌ Cancel
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Response Display -->
+            <div id="responseSection" class="hidden mt-8">
+                <div class="bg-white rounded-2xl card-shadow p-8">
+                    <h3 id="responseTitle" class="text-2xl font-bold text-gray-800 mb-4"></h3>
+                    <div id="responseContent" class="rounded-lg p-6"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:4002';
+        const API_KEY = '9oAlpAhPvkKOGwuo6LiU8CPyRPxXSDoRVq1PFD0tkN';
+        const PHONE_NUMBER_ID = '690875100784871';
+
+        // Sample contacts data (replace with your actual data)
+        const contactsData = {
+            customers: [
+                { id: 'cmejr21xr00siyjb5oc7k8vam', name: 'Pranay Kumar', phone: '9307768467', email: 'pranay@example.com', tags: ['customers', 'vip'] },
+                { id: 'contact_2', name: 'Rahul Sharma', phone: '9876543210', email: 'rahul@example.com', tags: ['customers'] },
+                { id: 'contact_3', name: 'Priya Patel', phone: '8765432109', email: 'priya@example.com', tags: ['customers'] }
+            ],
+            leads: [
+                { id: 'contact_4', name: 'Amit Singh', phone: '7654321098', email: 'amit@example.com', tags: ['leads'] },
+                { id: 'contact_5', name: 'Neha Gupta', phone: '6543210987', email: 'neha@example.com', tags: ['leads'] }
+            ],
+            vip: [
+                { id: 'cmejr21xr00siyjb5oc7k8vam', name: 'Pranay Kumar', phone: '9307768467', email: 'pranay@example.com', tags: ['customers', 'vip'] },
+                { id: 'contact_6', name: 'Rajesh Kumar', phone: '5432109876', email: 'rajesh@example.com', tags: ['vip'] }
+            ],
+            prospects: [
+                { id: 'contact_7', name: 'Suresh Verma', phone: '4321098765', email: 'suresh@example.com', tags: ['prospects'] }
+            ],
+            partners: [
+                { id: 'contact_8', name: 'Vikram Singh', phone: '3210987654', email: 'vikram@example.com', tags: ['partners'] }
+            ]
+        };
+
+        let selectedTag = '';
+        let filteredContacts = [];
+        let selectedContact = null;
+        let clickCount = 0;
+
+        // Template definitions
+        const templates = [
+            {
+                value: 'basic',
+                name: 'Basic Welcome',
+                text: 'Hi {{name}}, welcome to our service! How can we help you today?'
+            },
+            {
+                value: 'follow_up',
+                name: 'Follow Up',
+                text: 'Hi {{name}}, just following up on our recent conversation. Is there anything else you need?'
+            },
+            {
+                value: 'reminder',
+                name: 'Reminder',
+                text: 'Hi {{name}}, this is a friendly reminder about your upcoming appointment.'
+            },
+            {
+                value: 'promotion',
+                name: 'Promotion',
+                text: 'Hi {{name}}, we have an exclusive offer just for you! Check it out.'
+            },
+            {
+                value: 'custom',
+                name: 'Custom Message',
+                text: ''
+            }
+        ];
+
+        // Select tag and show contacts
+        function selectTag(tag) {
+            selectedTag = tag;
+            document.getElementById('selectedTagName').textContent = tag.charAt(0).toUpperCase() + tag.slice(1);
+            
+            // Get contacts for selected tag
+            if (tag === 'all') {
+                filteredContacts = Object.values(contactsData).flat();
+            } else {
+                filteredContacts = contactsData[tag] || [];
+            }
+            
+            displayContacts(filteredContacts);
+            document.getElementById('contactsSection').classList.remove('hidden');
+        }
+
+                // Display contacts
+        function displayContacts(contacts) {
+            const contactsGrid = document.getElementById('contactsGrid');
+            const contactCount = document.getElementById('contactCount');
+            
+            contactCount.textContent = contacts.length;
+            
+            if (contacts.length === 0) {
+                contactsGrid.innerHTML = `
+                    <div class="col-span-full text-center py-12">
+                        <p class="text-gray-500 text-lg">No contacts found for this tag.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            contactsGrid.innerHTML = contacts.map(contact => `
+                <div class="contact-card bg-white border border-gray-200 rounded-xl p-6 hover:shadow-lg">
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="flex-1">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-2">${contact.name}</h3>
+                            <div class="space-y-1 text-sm text-gray-600">
+                                <p>📱 ${contact.phone}</p>
+                                <p>📧 ${contact.email}</p>
+                            </div>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            ${contact.tags.map(tag => `
+                                <span class="tag-badge bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
+                                    ${tag}
+                                </span>
+                            `).join('')}
+                        </div>
+                                         </div>
+                     <button
+                         class="w-full btn-primary text-white py-3 px-4 rounded-lg font-semibold hover:bg-blue-700 transition-colors cursor-pointer"
+                         type="button"
+                         style="cursor: pointer; z-index: 10; position: relative; pointer-events: auto;"
+                         data-contact-id="${contact.id}"
+                         data-contact-name="${contact.name}"
+                         data-contact-phone="${contact.phone}"
+                     >
+                         📱 Send WhatsApp
+                     </button>
+                </div>
+            `).join('');
+            
+            // Add event listeners after creating the HTML
+            setTimeout(() => {
+                const buttons = contactsGrid.querySelectorAll('button');
+                console.log(`🔍 Found ${buttons.length} buttons to attach events to`);
+                
+                buttons.forEach((button, index) => {
+                    const contact = contacts[index];
+                    console.log(`🔍 Attaching click event to button for ${contact.name}`);
+                    
+                    // Remove any existing event listeners
+                    button.replaceWith(button.cloneNode(true));
+                    const newButton = contactsGrid.querySelectorAll('button')[index];
+                    
+                    newButton.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        clickCount++;
+                        console.log(`🔍 Button clicked for contact: ${contact.name} (Click #${clickCount})`);
+                        alert(`Button clicked! Opening modal for ${contact.name}`);
+                        openMessageModal(contact.id, contact.name, contact.phone);
+                    });
+                    
+                    // Add visual feedback
+                    newButton.addEventListener('mouseenter', function() {
+                        this.style.transform = 'translateY(-2px)';
+                        this.style.boxShadow = '0 10px 20px rgba(102, 126, 234, 0.3)';
+                    });
+                    
+                    newButton.addEventListener('mouseleave', function() {
+                        this.style.transform = 'translateY(0)';
+                        this.style.boxShadow = 'none';
+                    });
+                });
+            }, 100);
+        }
+
+        // Search contacts
+        function searchContacts() {
+            const searchTerm = document.getElementById('searchContacts').value.toLowerCase();
+            
+            if (!searchTerm) {
+                displayContacts(filteredContacts);
+                return;
+            }
+            
+            const searchResults = filteredContacts.filter(contact => 
+                contact.name.toLowerCase().includes(searchTerm) ||
+                contact.phone.includes(searchTerm) ||
+                contact.email.toLowerCase().includes(searchTerm)
+            );
+            
+            displayContacts(searchResults);
+        }
+
+        // Clear search
+        function clearSearch() {
+            document.getElementById('searchContacts').value = '';
+            displayContacts(filteredContacts);
+        }
+
+        // Open message modal
+        function openMessageModal(contactId, contactName, contactPhone) {
+            console.log('🔍 Opening modal for:', { contactId, contactName, contactPhone });
+            
+            try {
+                // Check if elements exist
+                const modalContactName = document.getElementById('modalContactName');
+                const modalContactPhone = document.getElementById('modalContactPhone');
+                const messageModal = document.getElementById('messageModal');
+                
+                console.log('🔍 Found elements:', { 
+                    modalContactName: !!modalContactName, 
+                    modalContactPhone: !!modalContactPhone, 
+                    messageModal: !!messageModal 
+                });
+                
+                if (!modalContactName || !modalContactPhone || !messageModal) {
+                    console.error('❌ Modal elements not found!');
+                    alert('Error: Modal elements not found. Please refresh the page.');
+                    return;
+                }
+                
+                // Set selected contact
+                selectedContact = { id: contactId, name: contactName, phone: contactPhone };
+                
+                // Update modal content
+                modalContactName.textContent = contactName;
+                modalContactPhone.textContent = contactPhone;
+                
+                // Show modal
+                messageModal.classList.remove('hidden');
+                
+                console.log('✅ Modal opened successfully');
+                
+                // Reset form
+                const templateSelect = document.getElementById('templateSelect');
+                const customMessageSection = document.getElementById('customMessageSection');
+                const templatePreview = document.getElementById('templatePreview');
+                const customMessage = document.getElementById('customMessage');
+                
+                if (templateSelect) templateSelect.value = '';
+                if (customMessageSection) customMessageSection.classList.add('hidden');
+                if (templatePreview) templatePreview.classList.add('hidden');
+                if (customMessage) customMessage.value = '';
+                
+            } catch (error) {
+                console.error('❌ Error opening modal:', error);
+                alert('Error opening modal: ' + error.message);
+            }
+        }
+
+        // Close message modal
+        function closeMessageModal() {
+            document.getElementById('messageModal').classList.add('hidden');
+            selectedContact = null;
+        }
+
+        // Update template preview
+        function updateTemplatePreview() {
+            const templateSelect = document.getElementById('templateSelect');
+            const templatePreview = document.getElementById('templatePreview');
+            const customMessageSection = document.getElementById('customMessageSection');
+            const previewText = document.getElementById('previewText');
+            
+            if (!templateSelect.value) {
+                templatePreview.classList.add('hidden');
+                customMessageSection.classList.add('hidden');
+                return;
+            }
+            
+            if (templateSelect.value === 'custom') {
+                customMessageSection.classList.remove('hidden');
+                templatePreview.classList.add('hidden');
+            } else {
+                customMessageSection.classList.add('hidden');
+                templatePreview.classList.remove('hidden');
+                const template = templates.find(t => t.value === templateSelect.value);
+                if (template && selectedContact) {
+                    previewText.textContent = template.text.replace('{{name}}', selectedContact.name);
+                }
+            }
+        }
+
+        // Form submission
+        document.getElementById('whatsappForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            if (!selectedContact) {
+                alert('No contact selected');
+                return;
+            }
+            
+            const templateSelect = document.getElementById('templateSelect');
+            const language = document.getElementById('language').value;
+            const customMessage = document.getElementById('customMessage');
+            
+            if (!templateSelect.value) {
+                alert('Please select a template');
+                return;
+            }
+            
+            // Get the message text based on template selection
+            let messageText = '';
+            if (templateSelect.value === 'custom') {
+                messageText = customMessage.value.trim();
+                if (!messageText) {
+                    alert('Please enter a custom message');
+                    return;
+                }
+            } else {
+                // Use template text with contact name
+                const template = templates.find(t => t.value === templateSelect.value);
+                messageText = template.text.replace('{{name}}', selectedContact.name);
+            }
+            
+            const sendButton = document.getElementById('sendButton');
+            const originalText = sendButton.innerHTML;
+            
+            // Show loading state
+            sendButton.innerHTML = `
+                <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Sending Message...
+            `;
+            sendButton.disabled = true;
+
+            try {
+                // Extract country code and phone number
+                const phone = selectedContact.phone;
+                const countryCode = phone.startsWith('91') ? '91' : '91'; // Default to India
+                const phoneNumber = phone.replace(/^91/, '');
+                
+                // Use the working Postman format payload
+                const payload = {
+                    phone_number_id: PHONE_NUMBER_ID,
+                    customer_country_code: countryCode,
+                    customer_number: phoneNumber,
+                    data: {
+                        type: "text",
+                        context: {
+                            body: messageText,
+                            preview_url: false
+                        }
+                    },
+                    reply_to: null,
+                    myop_ref_id: `ref_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`
+                };
+
+                console.log('📤 Sending WhatsApp message with payload:', payload);
+
+                // Use the working /whatsapp/send-text-message endpoint
+                const response = await fetch(`${API_BASE_URL}/whatsapp/send-text-message`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-api-key': API_KEY,
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                
+                console.log('📥 WhatsApp API response:', result);
+                
+                showResponse(response.ok, result);
+                
+                if (response.ok) {
+                    closeMessageModal();
+                }
+                
+            } catch (error) {
+                console.error('❌ Error sending WhatsApp message:', error);
+                showResponse(false, { error: error.message || 'Network error occurred' });
+            } finally {
+                // Restore button
+                sendButton.innerHTML = originalText;
+                sendButton.disabled = false;
+            }
+        });
+
+        // Show response
+        function showResponse(isSuccess, data) {
+            const responseSection = document.getElementById('responseSection');
+            const responseTitle = document.getElementById('responseTitle');
+            const responseContent = document.getElementById('responseContent');
+
+            responseSection.classList.remove('hidden');
+
+            if (isSuccess) {
+                responseTitle.innerHTML = '✅ WhatsApp Message Sent Successfully!';
+                responseTitle.className = 'text-2xl font-bold text-green-800 mb-4';
+                
+                responseContent.className = 'bg-green-50 border border-green-200 rounded-lg p-6';
+                responseContent.innerHTML = `
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <span class="font-semibold text-green-800">Status:</span>
+                            <span class="ml-2 text-green-700">${data.status || 'sent'}</span>
+                        </div>
+                        <div>
+                            <span class="font-semibold text-green-800">Success:</span>
+                            <span class="ml-2 text-green-700">${data.success ? 'Yes' : 'No'}</span>
+                        </div>
+                        ${data.messageId ? `
+                            <div class="md:col-span-2">
+                                <span class="font-semibold text-green-800">Message ID:</span>
+                                <span class="ml-2 text-green-700 font-mono text-sm">${data.messageId}</span>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            } else {
+                responseTitle.innerHTML = '❌ Error Sending WhatsApp Message';
+                responseTitle.className = 'text-2xl font-bold text-red-800 mb-4';
+                
+                responseContent.className = 'bg-red-50 border border-red-200 rounded-lg p-6';
+                responseContent.innerHTML = `
+                    <p class="text-red-700 font-mono">${data.error || 'An unexpected error occurred'}</p>
+                `;
+            }
+        }
+
+        // Test function for debugging
+        function testModal() {
+            console.log('🧪 Testing modal function...');
+            alert('🧪 Test button clicked! Opening test modal...');
+            openMessageModal('test_contact', 'Test User', '1234567890');
+        }
+        
+        // Test contact button click
+        function testContactButton() {
+            console.log('🧪 Testing contact button...');
+            alert('🧪 Contact button clicked! Opening modal for Pranay...');
+            openMessageModal('cmejr21xr00siyjb5oc7k8vam', 'Pranay Kumar', '9307768467');
+        }
+        
+        // Test if buttons are clickable
+        function testButtonClickability() {
+            console.log('🧪 Testing button clickability...');
+            const buttons = document.querySelectorAll('.contact-card button');
+            console.log(`Found ${buttons.length} contact buttons`);
+            
+            if (buttons.length === 0) {
+                alert('❌ No contact buttons found! Please select a tag first.');
+                return;
+            }
+            
+            buttons.forEach((button, index) => {
+                console.log(`Button ${index}:`, {
+                    disabled: button.disabled,
+                    style: button.style.cssText,
+                    classes: button.className,
+                    pointerEvents: getComputedStyle(button).pointerEvents,
+                    onclick: button.onclick,
+                    eventListeners: button._listeners || 'None'
+                });
+                
+                // Test if button is actually clickable
+                try {
+                    button.click();
+                    console.log(`✅ Button ${index} is clickable`);
+                } catch (error) {
+                    console.error(`❌ Button ${index} is NOT clickable:`, error);
+                }
+            });
+            
+            alert(`Found ${buttons.length} contact buttons. Check console for details.`);
+        }
+        
+        // Test direct button click
+        function testDirectButtonClick() {
+            console.log('🧪 Testing direct button click...');
+            const buttons = document.querySelectorAll('.contact-card button');
+            
+            if (buttons.length === 0) {
+                alert('❌ No contact buttons found! Please select a tag first.');
+                return;
+            }
+            
+            // Try to click the first button
+            const firstButton = buttons[0];
+            console.log('🔍 First button:', firstButton);
+            
+            try {
+                // Simulate a click
+                firstButton.dispatchEvent(new Event('click', { bubbles: true }));
+                console.log('✅ Direct click event dispatched successfully');
+            } catch (error) {
+                console.error('❌ Error dispatching click event:', error);
+            }
+        }
+
+        // Initialize with default tag
+        selectTag('customers');
+    </script>
+</body>
+</html>

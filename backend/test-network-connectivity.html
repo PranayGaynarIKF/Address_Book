@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Network Connectivity Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background-color: #f5f5f5; 
+        }
+        .container { 
+            max-width: 800px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 20px; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+        }
+        .test-section { 
+            margin: 20px 0; 
+            padding: 15px; 
+            border: 1px solid #e5e7eb; 
+            border-radius: 6px; 
+        }
+        .success { 
+            background-color: #f0fdf4; 
+            border-color: #22c55e; 
+            color: #166534; 
+        }
+        .error { 
+            background-color: #fef2f2; 
+            border-color: #ef4444; 
+            color: #991b1b; 
+        }
+        .info { 
+            background-color: #eff6ff; 
+            border-color: #3b82f6; 
+            color: #1e40af; 
+        }
+        button { 
+            background: #3b82f6; 
+            color: white; 
+            border: none; 
+            padding: 10px 20px; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            margin: 5px; 
+        }
+        button:hover { 
+            background: #2563eb; 
+        }
+        .log { 
+            background: #f8f9fa; 
+            border: 1px solid #e9ecef; 
+            border-radius: 4px; 
+            padding: 10px; 
+            margin: 10px 0; 
+            font-family: monospace; 
+            font-size: 12px; 
+            max-height: 200px; 
+            overflow-y: auto; 
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Network Connectivity Test</h1>
+        <p>This page will test the connection between your browser and the backend API.</p>
+        
+        <div class="test-section info">
+            <h3>📋 Test Information</h3>
+            <p><strong>Backend URL:</strong> http://localhost:4002</p>
+            <p><strong>API Key:</strong> my-secret-api-key-123</p>
+            <p><strong>Current Time:</strong> <span id="current-time"></span></p>
+        </div>
+
+        <div class="test-section">
+            <h3>🧪 Run Tests</h3>
+            <button onclick="testBasicConnectivity()">Test Basic Connectivity</button>
+            <button onclick="testTagsAPI()">Test Tags API</button>
+            <button onclick="testContactsAPI()">Test Contacts API</button>
+            <button onclick="testTagManagement()">Test Tag Management</button>
+            <button onclick="clearLogs()">Clear Logs</button>
+        </div>
+
+        <div class="test-section">
+            <h3>📊 Test Results</h3>
+            <div id="results"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📝 Detailed Logs</h3>
+            <div id="logs" class="log"></div>
+        </div>
+    </div>
+
+    <script>
+        // Update current time
+        function updateTime() {
+            document.getElementById('current-time').textContent = new Date().toLocaleString();
+        }
+        updateTime();
+        setInterval(updateTime, 1000);
+
+        // Logging function
+        function log(message, type = 'info') {
+            const logsDiv = document.getElementById('logs');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.innerHTML = `<span style="color: #666;">[${timestamp}]</span> ${message}`;
+            logsDiv.appendChild(logEntry);
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+        }
+
+        // Clear logs
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+            document.getElementById('results').innerHTML = '';
+        }
+
+        // Test basic connectivity
+        async function testBasicConnectivity() {
+            log('🚀 Starting basic connectivity test...');
+            
+            try {
+                const response = await fetch('http://localhost:4002/health', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log('✅ Basic connectivity successful!', 'success');
+                    log(`📡 Response: ${JSON.stringify(data)}`);
+                    showResult('Basic Connectivity', '✅ SUCCESS', 'success');
+                } else {
+                    log(`❌ Basic connectivity failed: ${response.status} ${response.statusText}`, 'error');
+                    showResult('Basic Connectivity', '❌ FAILED', 'error');
+                }
+            } catch (error) {
+                log(`❌ Basic connectivity error: ${error.message}`, 'error');
+                showResult('Basic Connectivity', '❌ ERROR', 'error');
+            }
+        }
+
+        // Test Tags API
+        async function testTagsAPI() {
+            log('🏷️ Testing Tags API...');
+            
+            try {
+                const response = await fetch('http://localhost:4002/tags', {
+                    method: 'GET',
+                    headers: {
+                        'X-API-Key': 'my-secret-api-key-123',
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log('✅ Tags API successful!', 'success');
+                    log(`📋 Found ${data.length} tags`);
+                    showResult('Tags API', '✅ SUCCESS', 'success');
+                } else {
+                    log(`❌ Tags API failed: ${response.status} ${response.statusText}`, 'error');
+                    showResult('Tags API', '❌ FAILED', 'error');
+                }
+            } catch (error) {
+                log(`❌ Tags API error: ${error.message}`, 'error');
+                showResult('Tags API', '❌ ERROR', 'error');
+            }
+        }
+
+        // Test Contacts API
+        async function testContactsAPI() {
+            log('👥 Testing Contacts API...');
+            
+            try {
+                const response = await fetch('http://localhost:4002/contacts?page=1&limit=5', {
+                    method: 'GET',
+                    headers: {
+                        'X-API-Key': 'my-secret-api-key-123',
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log('✅ Contacts API successful!', 'success');
+                    log(`📋 Found ${data.data.length} contacts`);
+                    showResult('Contacts API', '✅ SUCCESS', 'success');
+                } else {
+                    log(`❌ Contacts API failed: ${response.status} ${response.statusText}`, 'error');
+                    showResult('Contacts API', '❌ FAILED', 'error');
+                }
+            } catch (error) {
+                log(`❌ Contacts API error: ${error.message}`, 'error');
+                showResult('Contacts API', '❌ ERROR', 'error');
+            }
+        }
+
+        // Test Tag Management
+        async function testTagManagement() {
+            log('🔗 Testing Tag Management...');
+            
+            try {
+                // First get a contact
+                const contactsResponse = await fetch('http://localhost:4002/contacts?page=1&limit=1', {
+                    method: 'GET',
+                    headers: {
+                        'X-API-Key': 'my-secret-api-key-123',
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!contactsResponse.ok) {
+                    log(`❌ Failed to get contacts for tag management test: ${contactsResponse.status}`, 'error');
+                    showResult('Tag Management', '❌ FAILED', 'error');
+                    return;
+                }
+                
+                const contactsData = await contactsResponse.json();
+                if (contactsData.data.length === 0) {
+                    log('❌ No contacts available for tag management test', 'error');
+                    showResult('Tag Management', '❌ FAILED', 'error');
+                    return;
+                }
+                
+                const contactId = contactsData.data[0].id;
+                log(`📋 Using contact ID: ${contactId} for testing`);
+                
+                // Get tags for this contact
+                const tagsResponse = await fetch(`http://localhost:4002/tags/contacts/${contactId}/tags`, {
+                    method: 'GET',
+                    headers: {
+                        'X-API-Key': 'my-secret-api-key-123',
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (tagsResponse.ok) {
+                    const tagsData = await tagsResponse.json();
+                    log('✅ Tag Management successful!', 'success');
+                    log(`📋 Contact has ${tagsData.length} tags`);
+                    showResult('Tag Management', '✅ SUCCESS', 'success');
+                } else {
+                    log(`❌ Tag Management failed: ${tagsResponse.status} ${tagsResponse.statusText}`, 'error');
+                    showResult('Tag Management', '❌ FAILED', 'error');
+                }
+            } catch (error) {
+                log(`❌ Tag Management error: ${error.message}`, 'error');
+                showResult('Tag Management', '❌ ERROR', 'error');
+            }
+        }
+
+        // Show result
+        function showResult(testName, result, type) {
+            const resultsDiv = document.getElementById('results');
+            const resultEntry = document.createElement('div');
+            resultEntry.className = `test-section ${type}`;
+            resultEntry.innerHTML = `<h4>${testName}</h4><p><strong>Result:</strong> ${result}</p>`;
+            resultsDiv.appendChild(resultEntry);
+        }
+
+        // Auto-run basic test on page load
+        window.onload = function() {
+            log('🚀 Network Connectivity Test Started!');
+            log('💡 Click the test buttons to run specific tests');
+            setTimeout(testBasicConnectivity, 1000);
+        };
+    </script>
+</body>
+</html>

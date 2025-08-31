@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Debug Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 1000px; 
+            margin: 0 auto; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .result {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .success { border-color: #28a745; background: #d4edda; }
+        .error { border-color: #dc3545; background: #f8d7da; }
+        .info { border-color: #17a2b8; background: #d1ecf1; }
+        .warning { border-color: #ffc107; background: #fff3cd; }
+    </style>
+</head>
+<body>
+    <h1>🔍 WhatsApp Debug Test</h1>
+    <p>Testing both old and new WhatsApp endpoints to see which one is actually working.</p>
+
+    <div class="test-section">
+        <h2>🔑 API Key Test</h2>
+        <p>Testing different API key formats to see which one works:</p>
+        <button class="test-button" onclick="testApiKey('x-api-key')">Test 'x-api-key'</button>
+        <button class="test-button" onclick="testApiKey('X-API-Key')">Test 'X-API-Key'</button>
+        <button class="test-button" onclick="testApiKey('X-API-KEY')">Test 'X-API-KEY'</button>
+        <div id="apiKeyResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>🧪 Test Old Template Endpoint (Should Work)</h2>
+        <p>Testing the endpoint you said is working: <code>/whatsapp/send-template/cmejr21xr00siyjb5oc7k8vam</code></p>
+        <button class="test-button" onclick="testOldTemplate()">Test Old Template Endpoint</button>
+        <div id="oldTemplateResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>🆕 Test New Text Message Endpoint</h2>
+        <p>Testing the new endpoint: <code>/whatsapp/send-text-message</code></p>
+        <button class="test-button" onclick="testNewTextMessage()">Test New Text Message Endpoint</button>
+        <div id="newTextMessageResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 Compare Results</h2>
+        <div id="comparisonResult" class="result info">
+            Click the test buttons above to see the comparison results.
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:4002';
+        const API_KEY = '9oAlpAhPvkKOGwuo6LiU8CPyRVq1PFD0tkN';
+        const TEST_CONTACT_ID = 'cmejr21xr00siyjb5oc7k8vam';
+
+        function showResult(elementId, data, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.textContent = JSON.stringify(data, null, 2);
+            element.className = `result ${type}`;
+        }
+
+        async function testApiKey(headerName) {
+            try {
+                const headers = {};
+                headers[headerName] = API_KEY;
+                
+                const response = await fetch(`${API_BASE_URL}/whatsapp/health`, {
+                    headers: headers
+                });
+                
+                const result = await response.json();
+                showResult('apiKeyResult', {
+                    headerName: headerName,
+                    status: response.status,
+                    statusText: response.statusText,
+                    data: result,
+                    success: response.ok
+                }, response.ok ? 'success' : 'error');
+            } catch (error) {
+                showResult('apiKeyResult', {
+                    headerName: headerName,
+                    error: error.message,
+                    type: 'Network Error'
+                }, 'error');
+            }
+        }
+
+        async function testOldTemplate() {
+            try {
+                const payload = {
+                    phone_number_id: "690875100784871",
+                    customer_country_code: "91",
+                    customer_number: "9307768467",
+                    data: {
+                        type: "template",
+                        context: {
+                            template_name: "test",
+                            language: "en",
+                            body: {
+                                name: "Test"
+                            }
+                        }
+                    },
+                    reply_to: null,
+                    myop_ref_id: `test_old_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`
+                };
+
+                const response = await fetch(`${API_BASE_URL}/whatsapp/send-template/${TEST_CONTACT_ID}`, {
+                    method: 'POST',
+                    headers: {
+                        'X-API-Key': API_KEY,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                const result = await response.json();
+                showResult('oldTemplateResult', {
+                    endpoint: `/whatsapp/send-template/${TEST_CONTACT_ID}`,
+                    status: response.status,
+                    statusText: response.statusText,
+                    payload: payload,
+                    response: result,
+                    success: response.ok
+                }, response.ok ? 'success' : 'error');
+            } catch (error) {
+                showResult('oldTemplateResult', {
+                    endpoint: `/whatsapp/send-template/${TEST_CONTACT_ID}`,
+                    error: error.message,
+                    type: 'Network Error'
+                }, 'error');
+            }
+        }
+
+        async function testNewTextMessage() {
+            try {
+                const payload = {
+                    phone_number_id: "690875100784871",
+                    customer_country_code: "91",
+                    customer_number: "9307768467",
+                    data: {
+                        type: "text",
+                        context: {
+                            body: "🧪 Test message from debug page - " + new Date().toLocaleTimeString(),
+                            preview_url: false
+                        }
+                    },
+                    reply_to: null,
+                    myop_ref_id: `test_new_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`
+                };
+
+                const response = await fetch(`${API_BASE_URL}/whatsapp/send-text-message`, {
+                    method: 'POST',
+                    headers: {
+                        'X-API-Key': API_KEY,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                const result = await response.json();
+                showResult('newTextMessageResult', {
+                    endpoint: '/whatsapp/send-text-message',
+                    status: response.status,
+                    statusText: response.statusText,
+                    payload: payload,
+                    response: result,
+                    success: response.ok
+                }, response.ok ? 'success' : 'error');
+            } catch (error) {
+                showResult('newTextMessageResult', {
+                    endpoint: '/whatsapp/send-text-message',
+                    error: error.message,
+                    type: 'Network Error'
+                }, 'error');
+            }
+        }
+
+        // Auto-run API key test on page load
+        window.onload = function() {
+            testApiKey('X-API-Key');
+        };
+    </script>
+</body>
+</html>

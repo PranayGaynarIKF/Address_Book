@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Contact Cards Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background-color: #f5f5f5; 
+        }
+        .container { 
+            max-width: 1200px; 
+            margin: 0 auto; 
+        }
+        .card { 
+            background: white; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+            padding: 20px; 
+            margin: 20px 0; 
+            border: 1px solid #e5e7eb; 
+        }
+        .contact-header { 
+            display: flex; 
+            align-items: start; 
+            justify-content: space-between; 
+            margin-bottom: 16px; 
+        }
+        .avatar { 
+            width: 48px; 
+            height: 48px; 
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8); 
+            border-radius: 50%; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            color: white; 
+            font-weight: 600; 
+            font-size: 18px; 
+        }
+        .contact-info h3 { 
+            margin: 0 0 8px 0; 
+            font-size: 18px; 
+            font-weight: 600; 
+            color: #111827; 
+        }
+        .badges { 
+            display: flex; 
+            gap: 8px; 
+            flex-wrap: wrap; 
+        }
+        .badge { 
+            padding: 4px 8px; 
+            border-radius: 9999px; 
+            font-size: 12px; 
+            font-weight: 500; 
+        }
+        .badge.company { background: #dbeafe; color: #1e40af; }
+        .badge.relationship { background: #e0e7ff; color: #3730a3; }
+        .badge.source { background: #f3e8ff; color: #7c3aed; }
+        
+        .contact-details { 
+            margin: 16px 0; 
+        }
+        .detail-item { 
+            display: flex; 
+            align-items: center; 
+            gap: 8px; 
+            margin: 8px 0; 
+            color: #6b7280; 
+            font-size: 14px; 
+        }
+        .icon { 
+            width: 16px; 
+            height: 16px; 
+            color: #9ca3af; 
+        }
+        
+        .tags-section { 
+            margin: 16px 0; 
+            padding: 16px 0; 
+            border-top: 1px solid #f3f4f6; 
+        }
+        .tags-header { 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between; 
+            margin-bottom: 12px; 
+        }
+        .tags-title { 
+            font-size: 14px; 
+            font-weight: 500; 
+            color: #374151; 
+            display: flex; 
+            align-items: center; 
+            gap: 8px; 
+        }
+        .add-tag-btn { 
+            font-size: 12px; 
+            color: #3b82f6; 
+            background: none; 
+            border: none; 
+            padding: 4px 8px; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            display: flex; 
+            align-items: center; 
+            gap: 4px; 
+        }
+        .add-tag-btn:hover { 
+            background: #eff6ff; 
+        }
+        .tags-container { 
+            display: flex; 
+            flex-wrap: wrap; 
+            gap: 8px; 
+            margin-bottom: 12px; 
+        }
+        .tag { 
+            display: inline-flex; 
+            align-items: center; 
+            padding: 4px 8px; 
+            border-radius: 9999px; 
+            font-size: 12px; 
+            font-weight: 500; 
+            color: white; 
+        }
+        .tag-remove { 
+            margin-left: 4px; 
+            background: rgba(0,0,0,0.2); 
+            border: none; 
+            color: white; 
+            border-radius: 50%; 
+            width: 16px; 
+            height: 16px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            cursor: pointer; 
+            font-size: 10px; 
+        }
+        .tag-remove:hover { 
+            background: rgba(0,0,0,0.3); 
+        }
+        .no-tags { 
+            font-size: 12px; 
+            color: #9ca3af; 
+            font-style: italic; 
+        }
+        
+        .actions { 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between; 
+            margin-top: 16px; 
+            padding-top: 16px; 
+            border-top: 1px solid #f3f4f6; 
+        }
+        .action-buttons { 
+            display: flex; 
+            gap: 8px; 
+        }
+        .action-btn { 
+            padding: 8px; 
+            color: #9ca3af; 
+            background: none; 
+            border: none; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            transition: all 0.2s; 
+        }
+        .action-btn:hover { 
+            background: #f3f4f6; 
+            color: #6b7280; 
+        }
+        
+        .demo-info { 
+            background: #dbeafe; 
+            border: 1px solid #93c5fd; 
+            border-radius: 8px; 
+            padding: 16px; 
+            margin-bottom: 20px; 
+        }
+        .demo-info h2 { 
+            margin: 0 0 12px 0; 
+            color: #1e40af; 
+        }
+        .demo-info ul { 
+            margin: 0; 
+            padding-left: 20px; 
+            color: #1e40af; 
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Enhanced Contact Cards Test</h1>
+        
+        <div class="demo-info">
+            <h2>✨ New Features Added:</h2>
+            <ul>
+                <li><strong>Tags Section:</strong> Each contact card now shows a dedicated tags area</li>
+                <li><strong>Current Tags:</strong> Display existing tags with colored badges</li>
+                <li><strong>Quick Tag Management:</strong> Add/remove tags directly on the card</li>
+                <li><strong>Tag Dropdown:</strong> Click "Add Tag" to see available tags</li>
+                <li><strong>Visual Feedback:</strong> Tags show their colors and can be removed</li>
+            </ul>
+        </div>
+
+        <!-- Sample Enhanced Contact Card -->
+        <div class="card">
+            <div class="contact-header">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div class="avatar">JD</div>
+                    <div class="contact-info">
+                        <h3>John Doe</h3>
+                        <div class="badges">
+                            <span class="badge company">Company</span>
+                            <span class="badge relationship">CUSTOMER</span>
+                            <span class="badge source">INVOICE</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="contact-details">
+                <div class="detail-item">
+                    <span class="icon">📧</span>
+                    <span>john.doe@company.com</span>
+                </div>
+                <div class="detail-item">
+                    <span class="icon">📱</span>
+                    <span>+1-555-0123</span>
+                </div>
+                <div class="detail-item">
+                    <span class="icon">🏢</span>
+                    <span>Acme Corporation</span>
+                </div>
+            </div>
+
+            <!-- Enhanced Tags Section -->
+            <div class="tags-section">
+                <div class="tags-header">
+                    <div class="tags-title">
+                        🏷️ Tags
+                    </div>
+                    <button class="add-tag-btn">
+                        ➕ Add Tag
+                        <span style="transform: rotate(0deg); transition: transform 0.2s;">▼</span>
+                    </button>
+                </div>
+
+                <div class="tags-container">
+                    <span class="tag" style="background-color: #ef4444;">
+                        VIP Customer
+                        <button class="tag-remove" title="Remove tag">×</button>
+                    </span>
+                    <span class="tag" style="background-color: #10b981;">
+                        High Value
+                        <button class="tag-remove" title="Remove tag">×</button>
+                    </span>
+                    <span class="tag" style="background-color: #3b82f6;">
+                        Invoice Client
+                        <button class="tag-remove" title="Remove tag">×</button>
+                    </span>
+                </div>
+            </div>
+
+            <div class="actions">
+                <div class="action-buttons">
+                    <button class="action-btn" title="Edit Contact">✏️</button>
+                    <button class="action-btn" title="Delete Contact">🗑️</button>
+                </div>
+                <div class="action-buttons">
+                    <button class="action-btn" title="View Details">👁️</button>
+                    <button class="action-btn" title="Send Message">💬</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Contact with No Tags -->
+        <div class="card">
+            <div class="contact-header">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div class="avatar">JS</div>
+                    <div class="contact-info">
+                        <h3>Jane Smith</h3>
+                        <div class="badges">
+                            <span class="badge company">Individual</span>
+                            <span class="badge relationship">PROSPECT</span>
+                            <span class="badge source">GMAIL</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="contact-details">
+                <div class="detail-item">
+                    <span class="icon">📧</span>
+                    <span>jane.smith@gmail.com</span>
+                </div>
+                <div class="detail-item">
+                    <span class="icon">📱</span>
+                    <span>+1-555-0456</span>
+                </div>
+            </div>
+
+            <!-- Tags Section - No Tags -->
+            <div class="tags-section">
+                <div class="tags-header">
+                    <div class="tags-title">
+                        🏷️ Tags
+                    </div>
+                    <button class="add-tag-btn">
+                        ➕ Add Tag
+                        <span style="transform: rotate(0deg); transition: transform 0.2s;">▼</span>
+                    </button>
+                </div>
+
+                <div class="tags-container">
+                    <span class="no-tags">No tags assigned</span>
+                </div>
+            </div>
+
+            <div class="actions">
+                <div class="action-buttons">
+                    <button class="action-btn" title="Edit Contact">✏️</button>
+                    <button class="action-btn" title="Delete Contact">🗑️</button>
+                </div>
+                <div class="action-buttons">
+                    <button class="action-btn" title="View Details">👁️</button>
+                    <button class="action-btn" title="Send Message">💬</button>
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-top: 40px; padding: 20px; background: #f0f9ff; border: 1px solid #0ea5e9; border-radius: 8px;">
+            <h3>🚀 How to Use Enhanced Contact Cards:</h3>
+            <ol>
+                <li><strong>View Tags:</strong> Each contact card shows current tags with colored badges</li>
+                <li><strong>Add Tags:</strong> Click "Add Tag" button to see available tags dropdown</li>
+                <li><strong>Remove Tags:</strong> Click the × button on any tag to remove it</li>
+                <li><strong>Tag Colors:</strong> Tags display with their assigned colors for easy identification</li>
+                <li><strong>Quick Management:</strong> No need to scroll down - manage tags right on the card!</li>
+            </ol>
+        </div>
+    </div>
+</body>
+</html>

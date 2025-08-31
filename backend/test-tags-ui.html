@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tags Test Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .tag-card {
+            display: inline-block;
+            margin: 10px;
+            padding: 15px 20px;
+            border-radius: 8px;
+            color: white;
+            font-weight: bold;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        .tag-name {
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+        .tag-description {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+        .tag-count {
+            background: rgba(255,255,255,0.2);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            margin-top: 5px;
+        }
+        .error {
+            color: red;
+            background: #ffe6e6;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .success {
+            color: green;
+            background: #e6ffe6;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏷️ Tags Test Page</h1>
+        <p>This page tests the tags API to verify tags are working.</p>
+        
+        <div>
+            <button onclick="testTagsAPI()">🔍 Test Tags API</button>
+            <button onclick="getAllTags()">📋 Get All Tags</button>
+            <button onclick="createTestTag()">➕ Create Test Tag</button>
+        </div>
+
+        <div id="jwt-section">
+            <h3>🔐 JWT Authentication</h3>
+            <input type="text" id="jwt-token" placeholder="Enter JWT token" style="width: 400px;">
+            <button onclick="setJWTToken()">Set Token</button>
+            <button onclick="clearJWTToken()">Clear Token</button>
+        </div>
+
+        <div id="results"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:4002';
+        let jwtToken = localStorage.getItem('jwt_token');
+
+        // Load JWT token on page load
+        if (jwtToken) {
+            document.getElementById('jwt-token').value = jwtToken;
+        }
+
+        function setJWTToken() {
+            jwtToken = document.getElementById('jwt-token').value;
+            localStorage.setItem('jwt_token', jwtToken);
+            showMessage('JWT token set successfully!', 'success');
+        }
+
+        function clearJWTToken() {
+            jwtToken = null;
+            localStorage.removeItem('jwt_token');
+            document.getElementById('jwt-token').value = '';
+            showMessage('JWT token cleared!', 'success');
+        }
+
+        function showMessage(message, type = 'error') {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = `<div class="${type}">${message}</div>`;
+        }
+
+        function showTags(tags) {
+            const resultsDiv = document.getElementById('results');
+            let html = '<h3>🏷️ Tags Found:</h3>';
+            
+            if (tags.length === 0) {
+                html += '<p>No tags found.</p>';
+            } else {
+                html += '<div style="display: flex; flex-wrap: wrap;">';
+                tags.forEach(tag => {
+                    html += `
+                        <div class="tag-card" style="background-color: ${tag.color}">
+                            <div class="tag-name">${tag.name}</div>
+                            <div class="tag-description">${tag.description || 'No description'}</div>
+                            <div class="tag-count">${tag.contactCount || 0} contacts</div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+            }
+            
+            resultsDiv.innerHTML = html;
+        }
+
+        async function testTagsAPI() {
+            try {
+                showMessage('Testing API...', 'success');
+                
+                // Test server connectivity
+                const healthResponse = await fetch(`${API_BASE}/health`);
+                if (healthResponse.ok) {
+                    showMessage('✅ Server is running and responding!', 'success');
+                } else {
+                    showMessage('❌ Server health check failed', 'error');
+                    return;
+                }
+
+                // Test tags endpoint
+                const tagsResponse = await fetch(`${API_BASE}/tags`);
+                if (tagsResponse.status === 401) {
+                    showMessage('⚠️ Tags endpoint requires JWT authentication. Please set a valid token.', 'error');
+                } else if (tagsResponse.ok) {
+                    const tags = await tagsResponse.json();
+                    showMessage(`✅ Tags API working! Found ${tags.length} tags.`, 'success');
+                    showTags(tags);
+                } else {
+                    showMessage(`❌ Tags API error: ${tagsResponse.status}`, 'error');
+                }
+            } catch (error) {
+                showMessage(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function getAllTags() {
+            if (!jwtToken) {
+                showMessage('❌ JWT token required. Please set a valid token first.', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/tags`, {
+                    headers: {
+                        'Authorization': `Bearer ${jwtToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (response.ok) {
+                    const tags = await response.json();
+                    showMessage(`✅ Successfully retrieved ${tags.length} tags!`, 'success');
+                    showTags(tags);
+                } else {
+                    const error = await response.text();
+                    showMessage(`❌ Error: ${response.status} - ${error}`, 'error');
+                }
+            } catch (error) {
+                showMessage(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function createTestTag() {
+            if (!jwtToken) {
+                showMessage('❌ JWT token required. Please set a valid token first.', 'error');
+                return;
+            }
+
+            try {
+                const testTag = {
+                    name: `Test Tag ${Date.now()}`,
+                    color: '#FF6B6B',
+                    description: 'This is a test tag created from the UI'
+                };
+
+                const response = await fetch(`${API_BASE}/tags`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${jwtToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(testTag)
+                });
+
+                if (response.ok) {
+                    const newTag = await response.json();
+                    showMessage(`✅ Test tag created successfully: ${newTag.name}`, 'success');
+                    // Refresh tags
+                    getAllTags();
+                } else {
+                    const error = await response.text();
+                    showMessage(`❌ Error creating tag: ${response.status} - ${error}`, 'error');
+                }
+            } catch (error) {
+                showMessage(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        // Auto-test on page load
+        window.onload = function() {
+            showMessage('Page loaded. Click "Test Tags API" to begin testing.', 'success');
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tag Email Debug Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .test-section {
+            background: #f8f9fa;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
+        }
+        .result {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: monospace;
+            overflow-x: auto;
+            margin: 10px 0;
+            white-space: pre-wrap;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        select {
+            padding: 8px;
+            margin: 10px 0;
+            width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Tag Email Debug Test</h1>
+    
+    <div class="test-section">
+        <h2>1. Test Tags Endpoint</h2>
+        <button onclick="testTagsEndpoint()">Fetch All Tags</button>
+        <div id="tagsResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. Test Tag Contacts Endpoint</h2>
+        <select id="tagSelect">
+            <option value="">Select a tag...</option>
+        </select>
+        <button onclick="testTagContacts()">Get Contacts for Selected Tag</button>
+        <div id="contactsResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. Test Email Bulk Endpoint</h2>
+        <button onclick="testEmailBulk()">Test Bulk Email Endpoint</button>
+        <div id="emailResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>4. Debug Information</h2>
+        <div id="debugInfo" class="result"></div>
+    </div>
+
+    <script>
+        let tags = [];
+        let selectedTagId = '';
+
+        async function testTagsEndpoint() {
+            const resultDiv = document.getElementById('tagsResult');
+            resultDiv.className = 'result';
+            resultDiv.textContent = 'Fetching tags...';
+
+            try {
+                const response = await fetch('http://localhost:4002/tags');
+                if (response.ok) {
+                    const data = await response.json();
+                    tags = data;
+                    
+                    // Update tag select dropdown
+                    const tagSelect = document.getElementById('tagSelect');
+                    tagSelect.innerHTML = '<option value="">Select a tag...</option>';
+                    
+                    // Filter tags with contacts
+                    const tagsWithContacts = data.filter(tag => tag.contactCount > 0);
+                    
+                    tagsWithContacts.forEach(tag => {
+                        const option = document.createElement('option');
+                        option.value = tag.id;
+                        option.textContent = `${tag.name} (${tag.contactCount} contacts)`;
+                        tagSelect.appendChild(option);
+                    });
+
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = `✅ Success! Found ${data.length} tags, ${tagsWithContacts.length} with contacts:\n\n${JSON.stringify(tagsWithContacts, null, 2)}`;
+                    
+                    updateDebugInfo();
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = `❌ Failed to fetch tags: ${response.status} ${response.statusText}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ Error fetching tags: ${error.message}`;
+            }
+        }
+
+        async function testTagContacts() {
+            const tagSelect = document.getElementById('tagSelect');
+            const selectedTagId = tagSelect.value;
+            
+            if (!selectedTagId) {
+                alert('Please select a tag first');
+                return;
+            }
+
+            const resultDiv = document.getElementById('contactsResult');
+            resultDiv.className = 'result';
+            resultDiv.textContent = `Fetching contacts for tag: ${selectedTagId}...`;
+
+            try {
+                const response = await fetch(`http://localhost:4002/tags/${selectedTagId}/contacts`);
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = `✅ Success! Found ${data.length} contacts for tag:\n\n${JSON.stringify(data, null, 2)}`;
+                    
+                    updateDebugInfo();
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = `❌ Failed to fetch contacts: ${response.status} ${response.statusText}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ Error fetching contacts: ${error.message}`;
+            }
+        }
+
+        async function testEmailBulk() {
+            const tagSelect = document.getElementById('tagSelect');
+            const selectedTagId = tagSelect.value;
+            
+            if (!selectedTagId) {
+                alert('Please select a tag first');
+                return;
+            }
+
+            const resultDiv = document.getElementById('emailResult');
+            resultDiv.className = 'result';
+            resultDiv.textContent = `Testing bulk email endpoint for tag: ${selectedTagId}...`;
+
+            try {
+                const testData = {
+                    message: {
+                        to: ['test@example.com'],
+                        subject: 'Test Email',
+                        body: 'This is a test email'
+                    },
+                    serviceType: 'GMAIL'
+                };
+
+                const response = await fetch(`http://localhost:4002/email/tags/${selectedTagId}/send-bulk`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(testData)
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = `✅ Success! Bulk email endpoint working:\n\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = `❌ Failed to test bulk email: ${response.status} ${response.statusText}\n\n${JSON.stringify(errorData, null, 2)}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ Error testing bulk email: ${error.message}`;
+            }
+        }
+
+        function updateDebugInfo() {
+            const debugDiv = document.getElementById('debugInfo');
+            const tagsWithContacts = tags.filter(tag => tag.contactCount > 0);
+            
+            debugDiv.textContent = `Debug Information:
+            
+Total Tags: ${tags.length}
+Tags with Contacts: ${tagsWithContacts.length}
+
+Tags with Contacts:
+${tagsWithContacts.map(tag => `- ${tag.name}: ${tag.contactCount} contacts`).join('\n')}
+
+Selected Tag ID: ${document.getElementById('tagSelect').value || 'None'}
+
+Frontend URL: ${window.location.href}
+Backend URL: http://localhost:4002
+            `;
+        }
+
+        // Auto-fetch tags on page load
+        window.onload = function() {
+            testTagsEndpoint();
+        };
+
+        // Update debug info when tag selection changes
+        document.getElementById('tagSelect').addEventListener('change', updateDebugInfo);
+    </script>
+</body>
+</html>

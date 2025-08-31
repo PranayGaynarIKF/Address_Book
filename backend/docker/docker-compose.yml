@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: contacts-sqlserver
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=YourStrong@Passw0rd
+      - MSSQL_PID=Developer
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+    networks:
+      - contacts-network
+
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: contacts-backend
+    environment:
+      - NODE_ENV=development
+      - PORT=4000
+      - DATABASE_URL=sqlserver://sa:YourStrong@Passw0rd@sqlserver:1433;database=ContactsDB;encrypt=true;trustServerCertificate=true
+      - JWT_SECRET=dev_jwt_secret_change_in_production
+      - ADMIN_EMAILS=admin@example.com
+      - INGESTION_API_KEY=dev_api_key_change_in_production
+      - DEFAULT_COUNTRY_CODE=IN
+      - TRUSTED_SOURCES=ZOHO,INVOICE
+    ports:
+      - "4000:4000"
+    depends_on:
+      - sqlserver
+    volumes:
+      - ../samples:/app/samples
+    networks:
+      - contacts-network
+    command: >
+      sh -c "
+        echo 'Waiting for SQL Server to be ready...' &&
+        sleep 30 &&
+        npm run prisma:generate &&
+        npm run prisma:migrate &&
+        npm run seed &&
+        npm run start:dev
+      "
+
+volumes:
+  sqlserver_data:
+
+networks:
+  contacts-network:
+    driver: bridge

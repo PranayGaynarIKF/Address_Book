@@ -1,0 +1,5 @@
+name,email,phone,company,relationship_type
+John Smith,john.smith@invoice.com,+919876543210,Invoice Corp,CLIENT
+Jane Doe,jane.doe@billing.com,+919876543211,Billing Inc,VENDOR
+Bob Wilson,bob.wilson@accounting.com,+919876543212,Accounting Ltd,CLIENT
+Alice Brown,alice.brown@finance.com,+919876543213,Finance Corp,VENDOR

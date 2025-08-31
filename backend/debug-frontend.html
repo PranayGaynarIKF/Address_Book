@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frontend Debug - Tag Management</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; color: #155724; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; color: #721c24; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; color: #0c5460; }
+        button { padding: 10px 15px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+        .loading { color: #856404; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Frontend Debug - Tag Management</h1>
+    
+    <div class="test-section info">
+        <h3>🔧 API Configuration</h3>
+        <p><strong>Backend URL:</strong> <span id="api-url">http://localhost:4002</span></p>
+        <p><strong>API Key:</strong> <span id="api-key">my-secret-api-key-123</span></p>
+        <p><strong>Status:</strong> <span id="status">Ready to test</span></p>
+    </div>
+
+    <div class="test-section">
+        <h3>📡 Test API Calls</h3>
+        <button onclick="testContacts()">Test Contacts API</button>
+        <button onclick="testTags()">Test Tags API</button>
+        <button onclick="testTagApplication()">Test Tag Application</button>
+        <button onclick="runAllTests()">Run All Tests</button>
+    </div>
+
+    <div class="test-section">
+        <h3>📊 Test Results</h3>
+        <div id="results"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>🔍 Debug Information</h3>
+        <div id="debug"></div>
+    </div>
+
+    <script>
+        // API Configuration
+        const API_BASE = 'http://localhost:4002';
+        const API_KEY = 'my-secret-api-key-123';
+        
+        // Results container
+        const resultsDiv = document.getElementById('results');
+        const debugDiv = document.getElementById('debug');
+        const statusSpan = document.getElementById('status');
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = `test-section ${type}`;
+            logEntry.innerHTML = `<strong>[${timestamp}]</strong> ${message}`;
+            resultsDiv.appendChild(logEntry);
+            resultsDiv.scrollTop = resultsDiv.scrollHeight;
+        }
+        
+        function debug(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            const debugEntry = document.createElement('div');
+            debugEntry.innerHTML = `<strong>[${timestamp}]</strong> ${message}`;
+            debugDiv.appendChild(debugEntry);
+            debugDiv.scrollTop = debugDiv.scrollHeight;
+        }
+        
+        async function makeRequest(url, options = {}) {
+            const config = {
+                method: 'GET',
+                headers: {
+                    'X-API-Key': API_KEY,
+                    'Content-Type': 'application/json'
+                },
+                ...options
+            };
+            
+            debug(`Making ${config.method} request to: ${url}`);
+            debug(`Headers: ${JSON.stringify(config.headers, null, 2)}`);
+            
+            try {
+                const response = await fetch(url, config);
+                debug(`Response status: ${response.status}`);
+                debug(`Response headers: ${JSON.stringify([...response.headers.entries()], null, 2)}`);
+                
+                const data = await response.json();
+                debug(`Response data: ${JSON.stringify(data, null, 2)}`);
+                
+                return { success: true, status: response.status, data, response };
+            } catch (error) {
+                debug(`Request failed: ${error.message}`);
+                return { success: false, error: error.message };
+            }
+        }
+        
+        async function testContacts() {
+            log('🧪 Testing Contacts API...', 'info');
+            statusSpan.textContent = 'Testing contacts...';
+            
+            const result = await makeRequest(`${API_BASE}/contacts?page=1&limit=5`);
+            
+            if (result.success) {
+                if (result.status === 200) {
+                    const contacts = result.data.data || result.data;
+                    log(`✅ Contacts API successful! Found ${contacts.length} contacts`, 'success');
+                    log(`First contact: ${contacts[0]?.name || 'N/A'}`, 'success');
+                } else {
+                    log(`⚠️ Contacts API returned status ${result.status}`, 'error');
+                }
+            } else {
+                log(`❌ Contacts API failed: ${result.error}`, 'error');
+            }
+            
+            statusSpan.textContent = 'Ready to test';
+        }
+        
+        async function testTags() {
+            log('🏷️ Testing Tags API...', 'info');
+            statusSpan.textContent = 'Testing tags...';
+            
+            const result = await makeRequest(`${API_BASE}/tags`);
+            
+            if (result.success) {
+                if (result.status === 200) {
+                    const tags = result.data;
+                    log(`✅ Tags API successful! Found ${tags.length} tags`, 'success');
+                    log(`First tag: ${tags[0]?.name || 'N/A'} (${tags[0]?.color || 'N/A'})`, 'success');
+                } else {
+                    log(`⚠️ Tags API returned status ${result.status}`, 'error');
+                }
+            } else {
+                log(`❌ Tags API failed: ${result.error}`, 'error');
+            }
+            
+            statusSpan.textContent = 'Ready to test';
+        }
+        
+        async function testTagApplication() {
+            log('🔗 Testing Tag Application...', 'info');
+            statusSpan.textContent = 'Testing tag application...';
+            
+            // First get a contact
+            const contactsResult = await makeRequest(`${API_BASE}/contacts?page=1&limit=1`);
+            if (!contactsResult.success || contactsResult.status !== 200) {
+                log('❌ Cannot test tag application - failed to get contacts', 'error');
+                statusSpan.textContent = 'Ready to test';
+                return;
+            }
+            
+            const contact = contactsResult.data.data[0];
+            log(`📱 Using contact: ${contact.name}`, 'info');
+            
+            // Get available tags
+            const tagsResult = await makeRequest(`${API_BASE}/tags`);
+            if (!tagsResult.success || tagsResult.status !== 200) {
+                log('❌ Cannot test tag application - failed to get tags', 'error');
+                statusSpan.textContent = 'Ready to test';
+                return;
+            }
+            
+            const availableTags = tagsResult.data.filter(tag => tag.contactCount === 0);
+            if (availableTags.length === 0) {
+                log('⚠️ No available tags for testing', 'info');
+                statusSpan.textContent = 'Ready to test';
+                return;
+            }
+            
+            const tag = availableTags[0];
+            log(`🏷️ Using tag: ${tag.name}`, 'info');
+            
+            // Apply tag
+            const applyResult = await makeRequest(`${API_BASE}/tags/contacts/${contact.id}/tags/${tag.id}`, {
+                method: 'POST'
+            });
+            
+            if (applyResult.success && applyResult.status === 201) {
+                log(`✅ Tag "${tag.name}" applied to contact "${contact.name}" successfully!`, 'success');
+                
+                // Remove tag
+                const removeResult = await makeRequest(`${API_BASE}/tags/contacts/${contact.id}/tags/${tag.id}`, {
+                    method: 'DELETE'
+                });
+                
+                if (removeResult.success) {
+                    log(`✅ Tag "${tag.name}" removed from contact "${contact.name}" successfully!`, 'success');
+                } else {
+                    log(`⚠️ Tag removal failed: ${removeResult.error}`, 'error');
+                }
+            } else {
+                log(`❌ Tag application failed: ${applyResult.error || 'Unknown error'}`, 'error');
+            }
+            
+            statusSpan.textContent = 'Ready to test';
+        }
+        
+        async function runAllTests() {
+            log('🚀 Running all tests...', 'info');
+            await testContacts();
+            await testTags();
+            await testTagApplication();
+            log('🎉 All tests completed!', 'success');
+        }
+        
+        // Auto-run contacts test on page load
+        window.addEventListener('load', () => {
+            log('🌐 Page loaded, ready for testing', 'info');
+            setTimeout(testContacts, 1000);
+        });
+    </script>
+</body>
+</html>

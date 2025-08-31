@@ -1,0 +1,280 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+// Note: SQL Server doesn't support enums, so we use strings with constraints
+
+model Owner {
+  id        String   @id @default(cuid()) @map("id")
+  name      String   @unique @map("name")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  links     ContactOwner[]
+  messages  OutboundMessage[]
+
+  @@map("app.Owners")
+}
+
+model Contact {
+  id                  String   @id @default(cuid()) @map("id")
+  name                String   @map("name")
+  companyName         String   @map("company_name")
+  email               String?  @db.VarChar(320) @map("email")
+  mobileE164          String?  @map("mobileno")
+  relationshipType    String?  @map("relationship_type") // CLIENT, VENDOR, LEAD, OTHER
+  isWhatsappReachable Boolean  @default(false) @map("is_whatsapp_reachable")
+  dataQualityScore    Int      @default(0) @map("data_quality_score")
+
+  sourceSystem   String @map("source_system") // INVOICE, GMAIL, ZOHO, ASHISH
+  sourceRecordId String @map("source_record_id")
+
+  owners     ContactOwner[]
+  messages   OutboundMessage[]
+  contactTags ContactTag[]
+  whatsappMessages WhatsAppMessage[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([name, mobileE164])
+  @@index([companyName])
+  @@index([sourceSystem, sourceRecordId], name: "idx_source_lookup")
+  @@map("app.Contacts")
+}
+
+model ContactOwner {
+  id        String  @id @default(cuid()) @map("id")
+  contactId String  @map("contact_id")
+  ownerId   String  @map("owner_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  contact Contact @relation(fields: [contactId], references: [id])
+  owner   Owner   @relation(fields: [ownerId], references: [id])
+
+  @@unique([contactId, ownerId])
+  @@index([ownerId])
+  @@map("app.ContactOwners")
+}
+
+model StagingContact {
+  id               String   @id @default(cuid()) @map("id")
+  rawName          String?  @map("raw_name")
+  rawEmail         String?  @map("raw_email")
+  rawPhone         String?  @map("raw_phone")
+  rawCompany       String?  @map("raw_company")
+  relationshipType String?  @map("relationship_type") // CLIENT, VENDOR, LEAD, OTHER
+  dataOwnerName    String?  @map("data_owner_name")
+  sourceSystem     String   @map("source_system") // INVOICE, GMAIL, ZOHO, ASHISH
+  sourceRecordId   String   @map("source_record_id")
+  importedAt       DateTime @default(now()) @map("imported_at")
+
+  normName      String? @map("norm_name")
+  normEmail     String? @map("norm_email")
+  normPhoneE164 String? @map("norm_phone_e164")
+  normCompany   String? @map("norm_company")
+  qualityScore  Int     @default(0) @map("quality_score")
+  duplicateHint String? @map("duplicate_hint")
+
+  @@map("app.StagingContacts")
+}
+
+model ImportRun {
+  id           String    @id @default(cuid()) @map("id")
+  sourceSystem String    @map("source_system") // INVOICE, GMAIL, ZOHO, ASHISH
+  startedAt    DateTime  @default(now()) @map("started_at")
+  finishedAt   DateTime? @map("finished_at")
+  total        Int       @default(0) @map("total")
+  inserted     Int       @default(0) @map("inserted")
+  updated      Int       @default(0) @map("updated")
+  duplicates   Int       @default(0) @map("duplicates")
+  conflicts    Int       @default(0) @map("conflicts")
+  reportJson   String?   @map("report_json")
+
+  @@map("app.ImportRuns")
+}
+
+model MergeHistory {
+  id                String   @id @default(cuid()) @map("id")
+  mergeType         String   @map("merge_type") // "AUTO_MERGE", "MANUAL_MERGE", "DEDUPLICATION"
+  primaryContactId  String   @map("primary_contact_id")
+  primaryContactName String  @map("primary_contact_name")
+  mergedContactId   String?  @map("merged_contact_id") // Null for deduplication
+  mergedContactName String?  @map("merged_contact_name")
+  sourceSystem      String   @map("source_system")
+  sourceRecordId    String?  @map("source_record_id")
+  
+  mergeReason       String   @map("merge_reason") // "SAME_PHONE", "SIMILAR_NAME", "EXACT_MATCH"
+  mergeDetails      String   @map("merge_details") // JSON string with detailed info
+  
+  mergedAt          DateTime @default(now()) @map("merged_at")
+  mergedBy          String?  @map("merged_by") // User ID or "SYSTEM"
+  
+  // Contact data before merge
+  beforeMergeData   String?  @map("before_merge_data") // JSON string
+  afterMergeData    String?  @map("after_merge_data") // JSON string
+  
+  // Quality scores
+  beforeQualityScore Int     @default(0) @map("before_quality_score")
+  afterQualityScore  Int     @default(0) @map("after_quality_score")
+  
+  // Source systems involved
+  involvedSourceSystems String @map("involved_source_systems") // Comma-separated list
+  
+  @@index([primaryContactId])
+  @@index([mergeType])
+  @@index([sourceSystem])
+  @@index([mergedAt])
+  @@map("app.MergeHistory")
+}
+
+model MessageTemplate {
+  id        String   @id @default(cuid()) @map("id")
+  name      String   @unique @map("name")
+  channel   String   @map("channel") // WHATSAPP, EMAIL, SMS
+  body      String   @map("body")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  messages  OutboundMessage[]
+
+  @@map("app.MessageTemplates")
+}
+
+model OutboundMessage {
+  id            String   @id @default(cuid()) @map("id")
+  contactId     String   @map("contact_id")
+  ownerId       String   @map("owner_id")
+  channel       String   @map("channel") // WHATSAPP, EMAIL, SMS
+  templateId    String?  @map("template_id")
+  body          String   @map("body")
+  status        String   @map("status") // PENDING, SENT, DELIVERED, FAILED
+  providerMsgId String?  @map("provider_msg_id")
+  meta          String?  @map("meta") // JSON string for additional data
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  contact  Contact        @relation(fields: [contactId], references: [id])
+  owner    Owner          @relation(fields: [ownerId], references: [id])
+  template MessageTemplate? @relation(fields: [templateId], references: [id])
+
+  @@index([contactId])
+  @@index([ownerId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("app.OutboundMessages")
+}
+
+// =============================================================================
+// TAGGING SYSTEM MODELS
+// =============================================================================
+
+model Tag {
+  id          String   @id @default(cuid()) @map("id")
+  name        String   @unique @map("name")
+  color       String   @default("#3B82F6") @map("color") // Hex color code
+  description String?  @map("description")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  
+  // Relationships
+  contactTags ContactTag[]
+  
+  @@index([name])
+  @@index([isActive])
+  @@map("app.Tags")
+}
+
+model ContactTag {
+  id        String   @id @default(cuid()) @map("id")
+  contactId String   @map("contact_id")
+  tagId     String   @map("tag_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  // Relationships
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  
+  @@unique([contactId, tagId])
+  @@index([contactId])
+  @@index([tagId])
+  @@map("app.ContactTags")
+}
+
+// =============================================================================
+// WHATSAPP MESSAGING MODELS
+// =============================================================================
+
+model WhatsAppMessage {
+  id        String   @id @default(cuid()) @map("id")
+  contactId String   @map("contact_id")
+  message   String  @map("message")
+  messageId String  @map("message_id") // External WhatsApp message ID
+  status    String  @map("status") // sent, delivered, failed, pending
+  error     String? @map("error") // Error message if failed
+  sentAt    DateTime @default(now()) @map("sent_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  
+  // Relationships
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  
+  @@index([contactId])
+  @@index([status])
+  @@index([sentAt])
+  @@map("app.WhatsAppMessages")
+}
+
+// =============================================================================
+// EMAIL SERVICE MODELS
+// =============================================================================
+
+model EmailServiceConfig {
+  id           String   @id @default(cuid()) @map("id")
+  userId       String   @map("user_id")
+  serviceType  String   @map("service_type") // GMAIL, OUTLOOK, YAHOO, ZOHO
+  clientId     String   @map("client_id")
+  clientSecret String   @map("client_secret")
+  redirectUri  String   @map("redirect_uri")
+  scopes       String   @map("scopes") // JSON string of scopes
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  
+  // Relationships
+  authTokens EmailAuthToken[]
+  
+  @@index([userId])
+  @@index([serviceType])
+  @@index([isActive])
+  @@map("app.EmailServiceConfigs")
+}
+
+model EmailAuthToken {
+  id           String   @id @default(cuid()) @map("id")
+  userId       String   @map("user_id")
+  serviceType  String   @map("service_type") // GMAIL, OUTLOOK, YAHOO, ZOHO
+  accessToken  String   @map("access_token")
+  refreshToken String   @map("refresh_token")
+  expiresAt    DateTime @map("expires_at")
+  scope        String   @map("scope") // JSON string of scopes
+  email        String?  @map("email")
+  isValid      Boolean  @default(true) @map("is_valid")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  
+  // Relationships
+  config EmailServiceConfig @relation(fields: [userId, serviceType], references: [userId, serviceType])
+  
+  @@index([userId])
+  @@index([serviceType])
+  @@index([isValid])
+  @@index([expiresAt])
+  @@map("app.EmailAuthTokens")
+}

@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp UI Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            padding: 20px; 
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #fafafa;
+        }
+        .success { background: #d4edda; border-color: #28a745; }
+        .error { background: #f8d7da; border-color: #dc3545; }
+        .warning { background: #fff3cd; border-color: #ffc107; }
+        .info { background: #d1ecf1; border-color: #17a2b8; }
+        
+        button { 
+            padding: 12px 24px; 
+            margin: 8px; 
+            cursor: pointer; 
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-primary:hover { background: #0056b3; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-success:hover { background: #1e7e34; }
+        .btn-warning { background: #ffc107; color: #212529; }
+        .btn-warning:hover { background: #e0a800; }
+        
+        input, textarea, select {
+            width: 100%;
+            padding: 10px;
+            margin: 8px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .result-box {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            border-left: 4px solid #007bff;
+        }
+        
+        .loading {
+            background: #fff3cd;
+            border-color: #ffc107;
+        }
+        
+        .contact-card {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .tag-selector {
+            display: flex;
+            gap: 10px;
+            margin: 15px 0;
+            flex-wrap: wrap;
+        }
+        
+        .tag-option {
+            padding: 8px 16px;
+            background: #e9ecef;
+            border: 2px solid transparent;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .tag-option.selected {
+            background: #007bff;
+            color: white;
+            border-color: #0056b3;
+        }
+        
+        .tag-option:hover {
+            background: #dee2e6;
+        }
+        
+        .tag-option.selected:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 WhatsApp UI Test</h1>
+        <p>This test simulates the WhatsApp Manager functionality to verify everything is working.</p>
+        
+        <!-- API Status Check -->
+        <div class="test-section info">
+            <h3>🔍 API Status Check</h3>
+            <button onclick="checkAPIStatus()" class="btn-primary">Check API Health</button>
+            <div id="apiStatus" class="result-box"></div>
+        </div>
+        
+        <!-- Tag Selection Test -->
+        <div class="test-section">
+            <h3>🏷️ Tag Selection Test</h3>
+            <p>Select a tag to fetch contacts:</p>
+            <div class="tag-selector">
+                <div class="tag-option" onclick="selectTag('tag_client')">Client</div>
+                <div class="tag-option" onclick="selectTag('tag_prospect')">Prospect</div>
+                <div class="tag-option" onclick="selectTag('tag_vendor')">Vendor</div>
+            </div>
+            <div id="tagResult" class="result-box"></div>
+        </div>
+        
+        <!-- Contact Display -->
+        <div class="test-section" id="contactsSection" style="display: none;">
+            <h3>👥 Contacts from Selected Tag</h3>
+            <div id="contactsList"></div>
+        </div>
+        
+        <!-- Message Composition -->
+        <div class="test-section" id="messageSection" style="display: none;">
+            <h3>💬 Message Composition</h3>
+            <div>
+                <label>Message Type:</label>
+                <select id="messageType">
+                    <option value="text">Text Message</option>
+                    <option value="template">Template Message</option>
+                </select>
+            </div>
+            <div>
+                <label>Message Text:</label>
+                <textarea id="messageText" rows="4" placeholder="Type your message here..."></textarea>
+            </div>
+            <div>
+                <label>Template (if using template):</label>
+                <select id="templateSelect">
+                    <option value="basic">Basic Welcome</option>
+                    <option value="follow_up">Follow Up</option>
+                    <option value="reminder">Reminder</option>
+                </select>
+            </div>
+            <button onclick="sendMessage()" class="btn-success">📤 Send Message</button>
+            <div id="sendResult" class="result-box"></div>
+        </div>
+        
+        <!-- Test Results Summary -->
+        <div class="test-section">
+            <h3>📊 Test Results Summary</h3>
+            <div id="testSummary" class="result-box">
+                <p>Run the tests above to see results...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:4002';
+        const API_KEY = '9oAlpAhPvkKOGwuo6LiU8CPyRPxXSDoRVq1PFD0tkN';
+        
+        let selectedTag = null;
+        let selectedContacts = [];
+        let testResults = {};
+
+        function showResult(elementId, data, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+            element.className = `result-box ${type}`;
+        }
+
+        function showLoading(elementId) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = '<p>🔄 Loading... Please wait...</p>';
+            element.className = 'result-box loading';
+        }
+
+        function updateTestSummary() {
+            const summary = document.getElementById('testSummary');
+            const results = Object.entries(testResults).map(([test, result]) => 
+                `${test}: ${result.success ? '✅ PASS' : '❌ FAIL'}`
+            ).join('<br>');
+            
+            summary.innerHTML = `
+                <h4>Test Status:</h4>
+                ${results || 'No tests run yet'}
+            `;
+        }
+
+        async function checkAPIStatus() {
+            showLoading('apiStatus');
+            
+            try {
+                const response = await fetch(`${API_BASE}/whatsapp/health`, {
+                    headers: { 'X-API-Key': API_KEY }
+                });
+
+                const result = await response.json();
+                
+                testResults['API Health'] = { success: response.ok, data: result };
+                updateTestSummary();
+
+                showResult('apiStatus', {
+                    status: response.status,
+                    success: response.ok,
+                    response: result
+                }, response.ok ? 'success' : 'error');
+                
+            } catch (error) {
+                testResults['API Health'] = { success: false, error: error.message };
+                updateTestSummary();
+                
+                showResult('apiStatus', { 
+                    error: error.message,
+                    type: 'Network Error'
+                }, 'error');
+            }
+        }
+
+        function selectTag(tagName) {
+            // Update UI
+            document.querySelectorAll('.tag-option').forEach(opt => opt.classList.remove('selected'));
+            event.target.classList.add('selected');
+            
+            selectedTag = tagName;
+            fetchContactsFromTag(tagName);
+        }
+
+        async function fetchContactsFromTag(tagName) {
+            showLoading('tagResult');
+            
+            try {
+                console.log('🔍 Fetching contacts from tag:', tagName);
+                
+                const response = await fetch(`${API_BASE}/tags/${tagName}/contacts`, {
+                    headers: { 
+                        'X-API-Key': API_KEY,
+                        'Accept': '*/*'
+                    }
+                });
+
+                const result = await response.json();
+                console.log('📥 Tag contacts response:', result);
+                
+                testResults['Tag Contacts'] = { success: response.ok, data: result };
+                updateTestSummary();
+
+                if (response.ok && Array.isArray(result)) {
+                    selectedContacts = result;
+                    
+                    showResult('tagResult', {
+                        endpoint: `/tags/${tagName}/contacts`,
+                        status: response.status,
+                        success: response.ok,
+                        contactsFound: result.length,
+                        contacts: result
+                    }, 'success');
+                    
+                    // Show contacts section
+                    document.getElementById('contactsSection').style.display = 'block';
+                    displayContacts(result);
+                    
+                    // Show message section
+                    document.getElementById('messageSection').style.display = 'block';
+                    
+                } else {
+                    showResult('tagResult', {
+                        endpoint: `/tags/${tagName}/contacts`,
+                        status: response.status,
+                        success: response.ok,
+                        error: 'Invalid response format'
+                    }, 'error');
+                }
+                
+            } catch (error) {
+                testResults['Tag Contacts'] = { success: false, error: error.message };
+                updateTestSummary();
+                
+                console.error('❌ Tag contacts error:', error);
+                showResult('tagResult', { 
+                    endpoint: `/tags/${tagName}/contacts`,
+                    error: error.message,
+                    type: 'Network Error'
+                }, 'error');
+            }
+        }
+
+        function displayContacts(contacts) {
+            const contactsList = document.getElementById('contactsList');
+            
+            contactsList.innerHTML = contacts.map(contact => `
+                <div class="contact-card">
+                    <h4>${contact.name || 'Unknown Name'}</h4>
+                    <p><strong>Company:</strong> ${contact.companyName || 'N/A'}</p>
+                    <p><strong>Phone:</strong> ${contact.mobileE164 || contact.phone || 'N/A'}</p>
+                    <p><strong>Email:</strong> ${contact.email || 'N/A'}</p>
+                    <p><strong>ID:</strong> ${contact.id}</p>
+                </div>
+            `).join('');
+        }
+
+        async function sendMessage() {
+            if (!selectedContacts.length) {
+                alert('❌ No contacts selected. Please select a tag first.');
+                return;
+            }
+
+            const messageText = document.getElementById('messageText').value.trim();
+            if (!messageText) {
+                alert('❌ Please enter a message.');
+                return;
+            }
+
+            const messageType = document.getElementById('messageType').value;
+            const templateSelect = document.getElementById('templateSelect').value;
+            
+            showLoading('sendResult');
+            
+            try {
+                let successCount = 0;
+                let totalCount = selectedContacts.length;
+                
+                console.log(`📤 Sending ${messageType} message to ${totalCount} contacts`);
+                
+                for (const contact of selectedContacts) {
+                    try {
+                        // Check if contact has required fields
+                        if (!contact.mobileE164 && !contact.phone) {
+                            console.warn(`⚠️ Skipping contact ${contact.name || contact.id}: missing phone number`);
+                            continue;
+                        }
+
+                        // Use mobileE164 if available, otherwise use phone
+                        const phone = contact.mobileE164 || contact.phone;
+                        const countryCode = phone.startsWith('91') ? '91' : '91';
+                        const phoneNumber = phone.replace(/^91/, '');
+
+                        // Generate message based on type
+                        let finalMessage = messageText;
+                        if (messageType === 'template') {
+                            finalMessage = `Hi ${contact.name || '[Name]'}, ${messageText}`;
+                        }
+
+                        console.log(`📱 Sending to ${contact.name} (${phone}): ${finalMessage}`);
+
+                        const response = await fetch(`${API_BASE}/whatsapp/send-text-message`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-API-Key': API_KEY,
+                                'Accept': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                phone_number_id: "690875100784871",
+                                customer_country_code: countryCode,
+                                customer_number: phoneNumber,
+                                data: {
+                                    type: "text",
+                                    context: {
+                                        body: finalMessage,
+                                        preview_url: false
+                                    }
+                                },
+                                reply_to: null,
+                                myop_ref_id: `ui_test_${Date.now()}_${contact.id}`
+                            })
+                        });
+
+                        if (response.ok) {
+                            const result = await response.json();
+                            successCount++;
+                            console.log(`✅ Message sent to ${contact.name}:`, result);
+                        } else {
+                            console.error(`❌ Failed to send to ${contact.name}: ${response.status}`);
+                        }
+                    } catch (error) {
+                        console.error(`❌ Error sending to contact ${contact.name || contact.id}:`, error);
+                    }
+                }
+
+                testResults['Send Message'] = { success: successCount > 0, data: { successCount, totalCount } };
+                updateTestSummary();
+
+                showResult('sendResult', {
+                    message: `Message sending completed!`,
+                    successCount: successCount,
+                    totalCount: totalCount,
+                    success: successCount === totalCount,
+                    details: successCount === totalCount ? 
+                        `✅ All ${successCount} messages sent successfully!` :
+                        `⚠️ ${successCount}/${totalCount} messages sent successfully.`
+                }, successCount === totalCount ? 'success' : 'warning');
+                
+            } catch (error) {
+                testResults['Send Message'] = { success: false, error: error.message };
+                updateTestSummary();
+                
+                console.error('❌ Error in send message:', error);
+                showResult('sendResult', { 
+                    error: error.message,
+                    type: 'Network Error'
+                }, 'error');
+            }
+        }
+
+        // Auto-check API status on page load
+        window.onload = function() {
+            checkAPIStatus();
+        };
+    </script>
+</body>
+</html>

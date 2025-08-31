@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Integration Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { 
+            margin: 0; 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; 
+        }
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .card-shadow {
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        .input-focus:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+    </style>
+</head>
+<body class="gradient-bg min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-white mb-3">
+                🧪 WhatsApp Integration Test
+            </h1>
+            <p class="text-xl text-blue-100">
+                Test the WhatsApp API integration with the working Postman format
+            </p>
+        </div>
+
+        <!-- Test Form -->
+        <div class="max-w-2xl mx-auto">
+            <div class="bg-white rounded-2xl card-shadow p-8">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6">
+                    📱 Send WhatsApp Message
+                </h2>
+
+                <form id="whatsappTestForm" class="space-y-6">
+                    <!-- Phone Number -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            📱 Phone Number (without country code)
+                        </label>
+                        <input
+                            type="text"
+                            id="phoneNumber"
+                            placeholder="9307768467"
+                            value="9307768467"
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg input-focus"
+                            required
+                        />
+                    </div>
+
+                    <!-- Message -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            ✍️ Message
+                        </label>
+                        <textarea
+                            id="messageText"
+                            rows="4"
+                            placeholder="Type your message here..."
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg input-focus"
+                            required
+                        >Hi! This is a test message from the WhatsApp integration.</textarea>
+                    </div>
+
+                    <!-- Send Button -->
+                    <button
+                        type="submit"
+                        id="sendButton"
+                        class="w-full btn-primary text-white py-4 px-6 rounded-lg font-semibold text-lg"
+                    >
+                        📤 Send WhatsApp Message
+                    </button>
+                </form>
+
+                <!-- Response Display -->
+                <div id="responseSection" class="hidden mt-8">
+                    <h3 id="responseTitle" class="text-2xl font-bold text-gray-800 mb-4"></h3>
+                    <div id="responseContent" class="rounded-lg p-6"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:4002';
+        const API_KEY = '9oAlpAhPvkKOGwuo6LiU8CPyRPxXSDoRVq1PFD0tkN';
+        const PHONE_NUMBER_ID = '690875100784871';
+
+        // Form submission
+        document.getElementById('whatsappTestForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const phoneNumber = document.getElementById('phoneNumber').value.trim();
+            const messageText = document.getElementById('messageText').value.trim();
+            
+            if (!phoneNumber || !messageText) {
+                alert('Please fill in all fields');
+                return;
+            }
+            
+            const sendButton = document.getElementById('sendButton');
+            const originalText = sendButton.innerHTML;
+            
+            // Show loading state
+            sendButton.innerHTML = `
+                <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Sending Message...
+            `;
+            sendButton.disabled = true;
+
+            try {
+                // Use the working Postman format payload
+                const payload = {
+                    phone_number_id: PHONE_NUMBER_ID,
+                    customer_country_code: "91",
+                    customer_number: phoneNumber,
+                    data: {
+                        type: "text",
+                        context: {
+                            body: messageText,
+                            preview_url: false
+                        }
+                    },
+                    reply_to: null,
+                    myop_ref_id: `test_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`
+                };
+
+                console.log('📤 Sending WhatsApp message with payload:', payload);
+
+                // Use the working /whatsapp/send-text-message endpoint
+                const response = await fetch(`${API_BASE_URL}/whatsapp/send-text-message`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-api-key': API_KEY,
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                
+                console.log('📥 WhatsApp API response:', result);
+                
+                showResponse(response.ok, result);
+                
+            } catch (error) {
+                console.error('❌ Error sending WhatsApp message:', error);
+                showResponse(false, { error: error.message || 'Network error occurred' });
+            } finally {
+                // Restore button
+                sendButton.innerHTML = originalText;
+                sendButton.disabled = false;
+            }
+        });
+
+        // Show response
+        function showResponse(isSuccess, data) {
+            const responseSection = document.getElementById('responseSection');
+            const responseTitle = document.getElementById('responseTitle');
+            const responseContent = document.getElementById('responseContent');
+
+            responseSection.classList.remove('hidden');
+
+            if (isSuccess) {
+                responseTitle.innerHTML = '✅ WhatsApp Message Sent Successfully!';
+                responseTitle.className = 'text-2xl font-bold text-green-800 mb-4';
+                
+                responseContent.className = 'bg-green-50 border border-green-200 rounded-lg p-6';
+                responseContent.innerHTML = `
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <span class="font-semibold text-green-800">Status:</span>
+                            <span class="ml-2 text-green-700">${data.status || 'sent'}</span>
+                        </div>
+                        <div>
+                            <span class="font-semibold text-green-800">Success:</span>
+                            <span class="ml-2 text-green-700">${data.success ? 'Yes' : 'No'}</span>
+                        </div>
+                        <div>
+                            <span class="font-semibold text-green-800">Message ID:</span>
+                            <span class="ml-2 text-green-700">${data.messageId || 'N/A'}</span>
+                        </div>
+                    </div>
+                    <div class="mt-4 p-4 bg-green-100 rounded-lg">
+                        <pre class="text-sm text-green-800">${JSON.stringify(data, null, 2)}</pre>
+                    </div>
+                `;
+            } else {
+                responseTitle.innerHTML = '❌ Error Sending WhatsApp Message';
+                responseTitle.className = 'text-2xl font-bold text-red-800 mb-4';
+                
+                responseContent.className = 'bg-red-50 border border-red-200 rounded-lg p-6';
+                responseContent.innerHTML = `
+                    <div class="text-red-800">
+                        <p><strong>Error:</strong> ${data.error || 'Unknown error occurred'}</p>
+                    </div>
+                    <div class="mt-4 p-4 bg-red-100 rounded-lg">
+                        <pre class="text-sm text-red-800">${JSON.stringify(data, null, 2)}</pre>
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>
