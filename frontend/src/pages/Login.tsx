@@ -17,7 +17,7 @@ const Login: React.FC = () => {
   // Redirect if already authenticated
   React.useEffect(() => {
     if (isAuthenticated) {
-      const from = location.state?.from?.pathname || '/';
+      const from = location.state?.from?.pathname || '/dashboard';
       navigate(from, { replace: true });
     }
   }, [isAuthenticated, navigate, location.state?.from?.pathname]);
@@ -42,7 +42,7 @@ const Login: React.FC = () => {
       login(response.data.access_token);
       
       // Redirect to the page they were trying to access, or dashboard
-      const from = location.state?.from?.pathname || '/';
+      const from = location.state?.from?.pathname || '/dashboard';
       navigate(from, { replace: true });
       
       // Show success message

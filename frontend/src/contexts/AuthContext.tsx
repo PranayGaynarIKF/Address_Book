@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { SessionService } from '../services/sessionService';
 
 interface User {
   email: string;
@@ -9,6 +10,7 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isInitialized: boolean;
   login: (token: string) => void;
   logout: () => void;
   checkAuth: () => boolean;
@@ -31,59 +33,62 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   const checkAuth = (): boolean => {
-    const token = localStorage.getItem('accessToken');
-    if (!token) {
-      return false;
-    }
-
-    try {
-      // Decode JWT token (basic validation)
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      const currentTime = Date.now() / 1000;
-      
-      if (payload.exp && payload.exp < currentTime) {
-        // Token expired
-        localStorage.removeItem('accessToken');
-        setUser(null);
-        return false;
-      }
-
-      setUser({
-        email: payload.email,
-        sub: payload.sub
-      });
-      return true;
-    } catch (error) {
-      // Invalid token
-      localStorage.removeItem('accessToken');
+    // Check if session is valid
+    if (!SessionService.isSessionValid() || SessionService.isTokenExpired()) {
+      SessionService.clearSession();
       setUser(null);
       return false;
     }
+
+    // Get user from token
+    const userData = SessionService.getUserFromToken();
+    if (userData) {
+      setUser(userData);
+      return true;
+    }
+
+    return false;
   };
 
   const login = (token: string) => {
-    localStorage.setItem('accessToken', token);
-    checkAuth();
+    SessionService.setToken(token);
+    const isAuth = checkAuth();
+    if (isAuth) {
+      setIsInitialized(true);
+    }
   };
 
   const logout = () => {
-    localStorage.removeItem('accessToken');
+    SessionService.clearSession();
     setUser(null);
+    setIsInitialized(false);
     // Force redirect to login page
     window.location.href = '/login';
   };
 
   useEffect(() => {
-    const isAuth = checkAuth();
-    setIsLoading(false);
+    // Initialize session monitoring
+    SessionService.initializeSessionMonitoring();
+    
+    // Add a small delay to ensure proper initialization
+    const initializeAuth = async () => {
+      await new Promise(resolve => setTimeout(resolve, 100)); // Small delay
+      const isAuth = checkAuth();
+      setIsInitialized(true);
+      setIsLoading(false);
+    };
+    
+    initializeAuth();
   }, []);
 
   const value: AuthContextType = {
     user,
     isAuthenticated: !!user,
     isLoading,
+    isInitialized,
     login,
     logout,
     checkAuth

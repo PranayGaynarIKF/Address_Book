@@ -17,13 +17,16 @@ import {
   Mail,
   Phone,
   Building,
-  MessageSquare
+  MessageSquare,
+  List,
+  Grid3X3
 } from 'lucide-react';
 import { contactsAPI } from '../services/api';
 import { ContactResponseDto, CreateContactDto } from '../types';
 import ContactModal from '../components/ContactModal';
 import { TagDemo } from '../components/TagDemo';
 import WhatsAppButton from '../components/WhatsApp/WhatsAppButton';
+import ContactList from '../components/ContactList/ContactList';
 
 // =============================================================================
 // TYPES AND INTERFACES
@@ -101,6 +104,9 @@ const Contacts: React.FC = () => {
   const [loadingContactTags, setLoadingContactTags] = useState<Record<string, boolean>>({});
   const [tagsLoading, setTagsLoading] = useState(false);
   const [tagsError, setTagsError] = useState<Error | null>(null);
+  
+  // View mode state - grid (default) or list
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   // Manual search function
   const handleSearch = () => {
@@ -123,7 +129,28 @@ const Contacts: React.FC = () => {
   // Load tags on component mount
   useEffect(() => {
     loadTags();
+    // Test backend connectivity
+    testBackendConnectivity();
   }, []);
+
+  const testBackendConnectivity = async () => {
+    try {
+      console.log('🔍 Testing backend connectivity...');
+      const response = await fetch(`${API_BASE}/tags`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      console.log('🔍 Backend connectivity test:', {
+        status: response.status,
+        ok: response.ok,
+        url: response.url
+      });
+    } catch (error) {
+      console.error('🔍 Backend connectivity test failed:', error);
+    }
+  };
 
   const loadTags = async () => {
     try {
@@ -133,7 +160,6 @@ const Contacts: React.FC = () => {
       
       const response = await fetch(`${API_BASE}/tags`, {
         headers: {
-          'x-api-key': API_KEY,
           'Content-Type': 'application/json',
         },
       });
@@ -157,7 +183,6 @@ const Contacts: React.FC = () => {
     try {
       const response = await fetch(`${API_BASE}/tags/contacts/${contactId}/tags`, {
         headers: {
-          'x-api-key': API_KEY,
           'Content-Type': 'application/json',
         },
       });
@@ -179,16 +204,25 @@ const Contacts: React.FC = () => {
 
   const applyTagToContact = async (contactId: string, tagId: string) => {
     try {
+      console.log('🔍 Applying individual tag:', { contactId, tagId, API_BASE });
+      
       const response = await fetch(`${API_BASE}/tags/contacts/${contactId}/tags/${tagId}`, {
         method: 'POST',
         headers: {
-          'x-api-key': API_KEY,
           'Content-Type': 'application/json',
         },
       });
       
+      console.log('🔍 Individual tag API response:', {
+        status: response.status,
+        ok: response.ok,
+        statusText: response.statusText
+      });
+      
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorText = await response.text();
+        console.error('🔍 Individual tag API error:', errorText);
+        throw new Error(`HTTP error! status: ${response.status}: ${errorText}`);
       }
       
       const contactTagsForContact = await fetchContactTags(contactId);
@@ -209,7 +243,6 @@ const Contacts: React.FC = () => {
       const response = await fetch(`${API_BASE}/tags/contacts/${contactId}/tags/${tagId}`, {
         method: 'DELETE',
         headers: {
-          'x-api-key': API_KEY,
           'Content-Type': 'application/json',
         },
       });
@@ -241,7 +274,6 @@ const Contacts: React.FC = () => {
       const response = await fetch(`${API_BASE}/tags`, {
         method: 'POST',
         headers: {
-          'x-api-key': API_KEY,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -268,19 +300,101 @@ const Contacts: React.FC = () => {
   };
 
   const applyTagToMultipleContacts = async (tagId: string) => {
-    if (selectedContacts.size === 0) return;
+    console.log('🚀 applyTagToMultipleContacts function called with tagId:', tagId);
+    console.log('🚀 selectedContacts.size at function start:', selectedContacts.size);
+    console.log('🚀 selectedContacts at function start:', Array.from(selectedContacts));
+    
+    if (selectedContacts.size === 0) {
+      console.log('🚀 No contacts selected, showing alert');
+      alert('Please select at least one contact to apply tags.');
+      return;
+    }
     
     try {
-      console.log(`🔄 Applying tag ${tagId} to ${selectedContacts.size} contacts...`);
+      // Use the bulk endpoint instead of individual calls
+      const requestBody = { contactIds: Array.from(selectedContacts) };
+      const requestUrl = `${API_BASE}/tags/${tagId}/contacts`;
       
-      const promises = Array.from(selectedContacts).map(contactId => 
-        applyTagToContact(contactId, tagId)
-      );
+      console.log('🚀 Applying tag to multiple contacts:', {
+        tagId,
+        selectedContacts: Array.from(selectedContacts),
+        requestUrl,
+        requestBody,
+        API_BASE
+      });
       
-      await Promise.all(promises);
-      console.log(`✅ Tag applied to ${selectedContacts.size} contacts`);
-    } catch (error) {
+      const response = await fetch(requestUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'accept': '*/*'
+        },
+        body: JSON.stringify(requestBody)
+      });
+      
+      console.log('🚀 API Response:', {
+        status: response.status,
+        ok: response.ok,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('🚀 API Error Response:', errorText);
+        console.error('🚀 Full error details:', {
+          status: response.status,
+          statusText: response.statusText,
+          url: response.url,
+          body: errorText
+        });
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+      
+      const result = await response.json();
+      console.log('🚀 API Success Response:', result);
+      
+      // Find the tag that was applied
+      const appliedTag = tags.find(tag => tag.id === tagId);
+      console.log('🚀 Applied tag found:', appliedTag);
+      
+      if (appliedTag) {
+        // Update local state for all selected contacts
+        setContactTags(prev => {
+          const updated = { ...prev };
+          console.log('🚀 Before update - contactTags state:', prev);
+          console.log('🚀 Selected contacts to update:', Array.from(selectedContacts));
+          
+          selectedContacts.forEach(contactId => {
+            if (!updated[contactId]) {
+              updated[contactId] = [];
+            }
+            // Check if tag is already applied to avoid duplicates
+            if (!updated[contactId].some(tag => tag.id === tagId)) {
+              updated[contactId] = [...updated[contactId], appliedTag];
+              console.log(`🚀 Added tag ${appliedTag.name} to contact ${contactId}. New tags:`, updated[contactId]);
+            } else {
+              console.log(`🚀 Tag ${appliedTag.name} already exists for contact ${contactId}`);
+            }
+          });
+          console.log('🚀 After update - contactTags state:', updated);
+          return updated;
+        });
+      }
+      
+      // Show success message
+      alert(`✅ Successfully applied tag to ${result.count || selectedContacts.size} contacts!`);
+      
+      // Close the dropdown
+      setBulkTagDropdownOpen(false);
+      
+      // Refresh the contacts data to ensure consistency
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      
+    } catch (error: any) {
       console.error('❌ Error applying tag to multiple contacts:', error);
+      console.error('❌ Full error object:', error);
+      alert(`Failed to apply tag: ${error?.message || 'Unknown error occurred'}`);
     }
   };
 
@@ -293,16 +407,43 @@ const Contacts: React.FC = () => {
     }
     
     try {
-      console.log(`🔄 Removing tag ${tagId} from ${selectedContacts.size} contacts...`);
+      // Use the bulk endpoint instead of individual calls
+      const response = await fetch(`${API_BASE}/tags/${tagId}/contacts`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'accept': '*/*'
+        },
+        body: JSON.stringify({ contactIds: Array.from(selectedContacts) })
+      });
       
-      const promises = Array.from(selectedContacts).map(contactId => 
-        removeTagFromContact(contactId, tagId)
-      );
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
       
-      await Promise.all(promises);
-      console.log(`✅ Tag removed from ${selectedContacts.size} contacts`);
-    } catch (error) {
-      console.error('❌ Error removing tag from multiple contacts:', error);
+      const result = await response.json();
+      
+      // Update local state for all selected contacts
+      setContactTags(prev => {
+        const updated = { ...prev };
+        selectedContacts.forEach(contactId => {
+          if (updated[contactId]) {
+            updated[contactId] = updated[contactId].filter(tag => tag.id !== tagId);
+          }
+        });
+        return updated;
+      });
+      
+      // Show success message
+      alert(`✅ Successfully removed tag from ${result.count || selectedContacts.size} contacts!`);
+      
+      // Refresh the contacts data to ensure consistency
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      
+    } catch (error: any) {
+      console.error('Error removing tag from multiple contacts:', error);
+      alert(`Failed to remove tag: ${error?.message || 'Unknown error occurred'}`);
     }
   };
 
@@ -314,8 +455,17 @@ const Contacts: React.FC = () => {
     
     try {
       setIsRemovingAllTags(true);
-      console.log(`🔄 Removing all tags from ${selectedContacts.size} contacts...`);
       
+      // Update local state immediately for better UX
+      setContactTags(prev => {
+        const updated = { ...prev };
+        selectedContacts.forEach(contactId => {
+          updated[contactId] = [];
+        });
+        return updated;
+      });
+      
+      // Remove tags from backend for each contact
       for (const contactId of Array.from(selectedContacts)) {
         const contactTagsForContact = contactTags[contactId] || [];
         for (const tag of contactTagsForContact) {
@@ -323,9 +473,10 @@ const Contacts: React.FC = () => {
         }
       }
       
-      console.log(`✅ All tags removed from ${selectedContacts.size} contacts`);
+      alert(`✅ All tags removed from ${selectedContacts.size} contacts`);
     } catch (error) {
-      console.error('❌ Error removing all tags from contacts:', error);
+      console.error('Error removing all tags from contacts:', error);
+      alert('Failed to remove all tags. Please try again.');
     } finally {
       setIsRemovingAllTags(false);
     }
@@ -336,9 +487,12 @@ const Contacts: React.FC = () => {
       const newSet = new Set(prev);
       if (newSet.has(contactId)) {
         newSet.delete(contactId);
+        console.log('🔍 Contact deselected:', contactId, 'Total selected:', newSet.size);
       } else {
         newSet.add(contactId);
+        console.log('🔍 Contact selected:', contactId, 'Total selected:', newSet.size);
       }
+      console.log('🔍 Updated selectedContacts:', Array.from(newSet));
       return newSet;
     });
   };
@@ -374,7 +528,33 @@ const Contacts: React.FC = () => {
     refetchOnReconnect: false,
   });
 
-  const filteredContacts = contacts?.data?.data || [];
+  // Memoize filtered contacts for better performance
+  const filteredContacts = useMemo(() => {
+    if (!contacts?.data?.data) {
+      return [];
+    }
+    
+    let filtered = contacts.data.data;
+    
+    // Apply search filter
+    if (debouncedSearchTerm) {
+      const searchLower = debouncedSearchTerm.toLowerCase();
+      filtered = filtered.filter(contact => 
+        contact.name?.toLowerCase().includes(searchLower) ||
+        contact.email?.toLowerCase().includes(searchLower) ||
+        contact.mobileE164?.includes(searchLower) ||
+        contact.companyName?.toLowerCase().includes(searchLower)
+      );
+    }
+    
+    // Apply source system filter
+    if (selectedSourceSystem !== 'all') {
+      filtered = filtered.filter(contact => contact.sourceSystem === selectedSourceSystem);
+    }
+    
+
+    return filtered;
+  }, [contacts?.data?.data, debouncedSearchTerm, selectedSourceSystem]);
 
   const loadTagsForContact = useCallback(async (contactId: string) => {
     if (contactTags[contactId]) {
@@ -561,7 +741,33 @@ const Contacts: React.FC = () => {
                 </p>
               </div>
               
-              <div className="flex flex-col sm:flex-row gap-3">
+                            <div className="flex flex-col sm:flex-row gap-3">
+                {/* View Mode Toggle */}
+                <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                  <button
+                    onClick={() => setViewMode('grid')}
+                    className={`flex items-center space-x-2 px-4 py-2 rounded-md transition-all duration-200 ${
+                      viewMode === 'grid'
+                        ? 'bg-white text-primary-600 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <Grid3X3 className="h-4 w-4" />
+                    <span className="text-sm font-medium">Grid View</span>
+                  </button>
+                  <button
+                    onClick={() => setViewMode('list')}
+                    className={`flex items-center space-x-2 px-4 py-2 rounded-md transition-all duration-200 ${
+                      viewMode === 'list'
+                        ? 'bg-white text-primary-600 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <List className="h-4 w-4" />
+                    <span className="text-sm font-medium">List View</span>
+                  </button>
+                </div>
+                
                 <button
                   onClick={() => setIsModalOpen(true)}
                   className="btn-primary flex items-center justify-center space-x-2 px-6 py-3"
@@ -569,95 +775,13 @@ const Contacts: React.FC = () => {
                   <Plus className="h-5 w-5" />
                   <span>Add New Contact</span>
                 </button>
-                
-                <button
-                  onClick={() => setBulkTagDropdownOpen(!bulkTagDropdownOpen)}
-                  className="btn-secondary flex items-center justify-center space-x-2 px-6 py-3"
-                >
-                  <Tag className="h-5 w-5" />
-                  <span>Manage Tags</span>
-                </button>
-                
-                <button
-                  onClick={async () => {
-                    try {
-                      console.log('🔍 Testing database connection...');
-                      const response = await fetch('http://localhost:4002/database/status');
-                      if (response.ok) {
-                        const data = await response.json();
-                        console.log('✅ Database status:', data);
-                        alert('Database connection is working!');
-                      } else {
-                        console.log('❌ Database status failed:', response.status);
-                        const errorText = await response.text();
-                        console.log('Error response:', errorText);
-                        alert('Database connection failed. Check backend logs.');
-                      }
-                    } catch (error) {
-                      console.error('❌ Database test failed:', error);
-                      alert('Cannot test database. Check if backend is running.');
-                    }
-                  }}
-                  className="btn-secondary flex items-center justify-center space-x-2 px-6 py-3"
-                >
-                  <span>Test Database</span>
-                </button>
-                
-                <button
-                  onClick={async () => {
-                    try {
-                      console.log('🔍 Testing contacts endpoint...');
-                      const response = await fetch('http://localhost:4002/contacts/test');
-                      if (response.ok) {
-                        const data = await response.json();
-                        console.log('✅ Contacts test successful:', data);
-                        alert(`Contacts endpoint working! Found ${data.count} contacts.`);
-                      } else {
-                        console.log('❌ Contacts test failed:', response.status);
-                        const errorText = await response.text();
-                        console.log('Error response:', errorText);
-                        alert('Contacts endpoint failed. Check backend logs.');
-                      }
-                    } catch (error) {
-                      console.error('❌ Contacts test failed:', error);
-                      alert('Cannot test contacts endpoint. Check if backend is running.');
-                    }
-                  }}
-                  className="btn-secondary flex items-center justify-center space-x-2 px-6 py-3"
-                >
-                  <span>Test Contacts</span>
-                </button>
-                
-                <button
-                  onClick={async () => {
-                    try {
-                      console.log('🔍 Testing simple database connection...');
-                      const response = await fetch('http://localhost:4002/contacts/test-simple');
-                      if (response.ok) {
-                        const data = await response.json();
-                        console.log('✅ Simple database test successful:', data);
-                        alert('Simple database connection working!');
-                      } else {
-                        console.log('❌ Simple database test failed:', response.status);
-                        const errorText = await response.text();
-                        console.log('Error response:', errorText);
-                        alert('Simple database test failed. Check backend logs.');
-                      }
-                    } catch (error) {
-                      console.error('❌ Simple database test failed:', error);
-                      alert('Cannot test simple database connection. Check if backend is running.');
-                    }
-                  }}
-                  className="btn-secondary flex items-center justify-center space-x-2 px-6 py-3"
-                >
-                  <span>Test Simple DB</span>
-                </button>
               </div>
             </div>
           </div>
 
-          {/* Search and Filters Section */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+          {/* Search and Filters Section - Only show in Grid View */}
+          {viewMode === 'grid' && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
               <div className="lg:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -691,22 +815,7 @@ const Contacts: React.FC = () => {
                     </button>
                   )}
                 </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Filter by Type
-                </label>
-                <select
-                  value={selectedFilter}
-                  onChange={(e) => setSelectedFilter(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200"
-                >
-                  <option value="all">All Contacts</option>
-                  <option value="company">Companies</option>
-                  <option value="individual">Individuals</option>
-                </select>
-              </div>
+              </div>           
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -726,7 +835,7 @@ const Contacts: React.FC = () => {
                 </select>
               </div>
             </div>
-          </div>
+          </div>)}
 
           {/* Bulk Tag Management Section */}
           {selectedContacts.size > 0 && (
@@ -748,7 +857,12 @@ const Contacts: React.FC = () => {
                 
                 <div className="flex items-center space-x-3">
                   <button
-                    onClick={() => setBulkTagDropdownOpen(!bulkTagDropdownOpen)}
+                    onClick={() => {
+                      console.log('🔍 Apply Tags button clicked');
+                      console.log('🔍 Current selectedContacts:', Array.from(selectedContacts));
+                      console.log('🔍 selectedContacts.size:', selectedContacts.size);
+                      setBulkTagDropdownOpen(!bulkTagDropdownOpen);
+                    }}
                     className="btn-primary text-sm"
                   >
                     Apply Tags
@@ -765,7 +879,15 @@ const Contacts: React.FC = () => {
               
               {/* Bulk Tag Dropdown */}
               {bulkTagDropdownOpen && (
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mt-4">
+                <div 
+                  className="bg-gray-50 border border-gray-200 rounded-lg p-4 mt-4"
+                  style={{ 
+                    position: 'relative',
+                    zIndex: 5,
+                    pointerEvents: 'auto'
+                  }}
+                >
+
                   <div className="mb-3">
                     <input
                       type="text"
@@ -789,8 +911,29 @@ const Contacts: React.FC = () => {
                           <span className="text-sm text-gray-700">{tag.name}</span>
                         </div>
                         <button
-                          onClick={() => applyTagToMultipleContacts(tag.id)}
-                          className="text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 px-3 py-1 rounded transition-colors"
+                          onClick={(e) => {
+                            console.log('🚀 Apply to All button clicked for tag:', tag.id, tag.name);
+                            console.log('🚀 Current selectedContacts:', Array.from(selectedContacts));
+                            console.log('🚀 selectedContacts.size:', selectedContacts.size);
+                            console.log('🚀 About to call applyTagToMultipleContacts with tagId:', tag.id);
+                            
+                            // Use setTimeout to ensure the click event completes before any re-renders
+                            setTimeout(() => {
+                              try {
+                                applyTagToMultipleContacts(tag.id);
+                                console.log('🚀 applyTagToMultipleContacts call completed');
+                              } catch (error) {
+                                console.error('🚀 Error calling applyTagToMultipleContacts:', error);
+                              }
+                            }, 0);
+                          }}
+                          className="text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 px-3 py-1 rounded transition-colors cursor-pointer relative z-10"
+                          style={{ 
+                            pointerEvents: 'auto',
+                            position: 'relative',
+                            zIndex: 10,
+                            border: '2px solid red' // Temporary visual debugging
+                          }}
                         >
                           Apply to All
                         </button>
@@ -802,8 +945,8 @@ const Contacts: React.FC = () => {
             </div>
           )}
 
-          {/* Contacts Selection Controls */}
-          {filteredContacts.length > 0 && (
+          {/* Contacts Selection Controls - Only show in Grid View */}
+          {viewMode === 'grid' && filteredContacts.length > 0 && (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
@@ -841,8 +984,11 @@ const Contacts: React.FC = () => {
             </div>
           )}
 
-          {/* Contacts Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* Contacts Content - Grid or List View */}
+          {viewMode === 'grid' ? (
+            <>
+              {/* Contacts Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredContacts.map((contact, index) => (
               <div 
                 key={contact.id}
@@ -868,7 +1014,12 @@ const Contacts: React.FC = () => {
                         <input
                           type="checkbox"
                           checked={selectedContacts.has(contact.id)}
-                          onChange={() => toggleContactSelection(contact.id)}
+                          onChange={(e) => {
+                            console.log('🔍 Checkbox clicked for contact:', contact.id, contact.name);
+                            console.log('🔍 Checkbox event:', e);
+                            console.log('🔍 Checkbox checked state:', e.target.checked);
+                            toggleContactSelection(contact.id);
+                          }}
                           className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded cursor-pointer"
                         />
                       </div>
@@ -956,8 +1107,10 @@ const Contacts: React.FC = () => {
                         </button>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        {contactTags[contact.id] && contactTags[contact.id].length > 0 ? (
-                          contactTags[contact.id].map((tag) => (
+                        {(() => {
+                          const contactTagsForThisContact = contactTags[contact.id];
+                          return contactTagsForThisContact && contactTagsForThisContact.length > 0 ? (
+                            contactTagsForThisContact.map((tag) => (
                             <span
                               key={tag.id}
                               className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full"
@@ -980,7 +1133,8 @@ const Contacts: React.FC = () => {
                           ))
                         ) : (
                           <span className="text-xs text-gray-500 italic">No tags applied - Click "Manage" to add tags</span>
-                        )}
+                        );
+                        })()}
                       </div>
                     </div>
                     
@@ -1192,18 +1346,13 @@ const Contacts: React.FC = () => {
                       </button>
                     </div>
                     
-                    <WhatsAppButton 
-                      contactId={contact.id}
-                      contactName={contact.name}
-                      phone={contact.mobileE164}
-                    />
                   </div>
                 </div>
               </div>
             ))}
-          </div>
+              </div>
 
-          {/* Pagination Controls */}
+              {/* Pagination Controls */}
           {contacts?.data?.total && contacts.data.total > pageSize && (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -1443,6 +1592,11 @@ const Contacts: React.FC = () => {
                 </button>
               )}
             </div>
+          )}
+            </>
+          ) : (
+            /* List View - ContactList Component */
+            <ContactList hideHeading={true} />
           )}
         </>
       )}

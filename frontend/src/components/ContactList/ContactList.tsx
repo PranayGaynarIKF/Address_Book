@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { 
   Search, 
@@ -68,9 +68,10 @@ const ContactTags: React.FC<{ contactId: string }> = ({ contactId }) => {
 
 interface ContactListProps {
   className?: string;
+  hideHeading?: boolean;
 }
 
-const ContactList: React.FC<ContactListProps> = ({ className = '' }) => {
+const ContactList: React.FC<ContactListProps> = ({ className = '', hideHeading = false }) => {
   const queryClient = useQueryClient();
   // State for filters and search
   const [searchTerm, setSearchTerm] = useState('');
@@ -128,6 +129,16 @@ const ContactList: React.FC<ContactListProps> = ({ className = '' }) => {
   const totalContacts = contacts?.data?.total || 0;
   const totalPages = Math.ceil(totalContacts / pageSize);
 
+  // Sync selectAllPage state when page changes or filteredContacts change
+  useEffect(() => {
+    if (filteredContacts.length > 0) {
+      const allCurrentPageSelected = filteredContacts.every((c: any) => selectedIds.has(c.id));
+      setSelectAllPage(allCurrentPageSelected);
+    } else {
+      setSelectAllPage(false);
+    }
+  }, [filteredContacts, selectedIds]);
+
   // Fetch available tags for modal
   const { data: tags } = useQuery({
     queryKey: ['tags-list'],
@@ -142,35 +153,66 @@ const ContactList: React.FC<ContactListProps> = ({ className = '' }) => {
   // Apply tag mutation (bulk)
   const applyTagMutation = useMutation({
     mutationFn: async ({ tagId, contactIds }: { tagId: string; contactIds: string[] }) => {
+      console.log('Making API call to:', `http://localhost:4002/tags/${tagId}/contacts`);
+      console.log('Request body:', { contactIds });
+      
       const res = await fetch(`http://localhost:4002/tags/${tagId}/contacts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', accept: '*/*' },
         body: JSON.stringify({ contactIds }),
       });
-      if (!res.ok) throw new Error('Failed to apply tag');
-      return res.json();
+      
+      console.log('Response status:', res.status);
+      console.log('Response ok:', res.ok);
+      
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('API Error:', errorText);
+        throw new Error(`Failed to apply tag: ${res.status} ${errorText}`);
+      }
+      
+      const result = await res.json();
+      console.log('API Success:', result);
+      return result;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log('Mutation success:', data);
+      alert(`✅ Successfully applied tag to ${data.count || selectedIds.size} contacts!`);
       setIsTagModalOpen(false);
       setSelectedIds(new Set());
       setSelectAllPage(false);
       queryClient.invalidateQueries({ queryKey: ['contactList'] });
     },
+    onError: (error) => {
+      console.error('Mutation error:', error);
+      alert(`Failed to apply tag: ${error.message}`);
+    },
   });
 
   const toggleSelectOne = (id: string) => {
     const next = new Set(selectedIds);
-    if (next.has(id)) next.delete(id); else next.add(id);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
     setSelectedIds(next);
+    
+    // Update selectAllPage state based on current selection
+    const allCurrentPageSelected = filteredContacts.every((c: any) => next.has(c.id));
+    setSelectAllPage(allCurrentPageSelected);
   };
 
   const toggleSelectAllPage = () => {
     const nextVal = !selectAllPage;
     setSelectAllPage(nextVal);
     const next = new Set<string>(selectedIds);
+    
     if (nextVal) {
+      // Select all contacts on current page
       filteredContacts.forEach((c: any) => next.add(c.id));
     } else {
+      // Deselect all contacts on current page
       filteredContacts.forEach((c: any) => next.delete(c.id));
     }
     setSelectedIds(next);
@@ -183,6 +225,8 @@ const ContactList: React.FC<ContactListProps> = ({ className = '' }) => {
 
   const confirmApplyTag = () => {
     if (!selectedTagId) return;
+    console.log('Applying tag to contacts:', Array.from(selectedIds));
+    console.log('Selected tag ID:', selectedTagId);
     applyTagMutation.mutate({ tagId: selectedTagId, contactIds: Array.from(selectedIds) });
   };
 
@@ -238,15 +282,17 @@ const ContactList: React.FC<ContactListProps> = ({ className = '' }) => {
       {/* Header */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 flex items-center">
-              <Users className="h-7 w-7 mr-3 text-primary-600" />
-              Contact List
-            </h1>
-            <p className="text-gray-600 mt-2">
-              View, filter, and export your contacts in a comprehensive list format
-            </p>
-          </div>
+          {!hideHeading && (
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 flex items-center">
+                <Users className="h-7 w-7 mr-3 text-primary-600" />
+                Contact List
+              </h1>
+              <p className="text-gray-600 mt-2">
+                View, filter, and export your contacts in a comprehensive list format
+              </p>
+            </div>
+          )}
           
           <div className="flex flex-col sm:flex-row gap-3">
                          <button

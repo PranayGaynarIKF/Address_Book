@@ -19,8 +19,7 @@ import {
   Mail,
   Shield,
   MessageCircle,
-  Tag,
-  List
+  Tag
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -36,7 +35,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navigation = [
     { name: 'Dashboard', href: '/', icon: Home },
     { name: 'Contacts', href: '/contacts', icon: Users },
-    { name: 'Contact List', href: '/contact-list', icon: List },
+    // Contact List removed - now integrated into Contacts section
     // Hidden per request: Owners, Templates, Messages, WhatsApp, Mail Accounts, Merge History
     // { name: 'Owners', href: '/owners', icon: UserCheck },
     // { name: 'Templates', href: '/templates', icon: FileText },

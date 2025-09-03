@@ -20,8 +20,9 @@ import DataSourceManager from './components/DataSourceManager';
 import MergeHistory from './components/MergeHistory';
 import OAuthCallback from './components/OAuthCallback';
 import TagManagement from './components/TagManagement/TagManagement';
-import ContactList from './components/ContactList/ContactList';
+
 import ProtectedRoute from './components/ProtectedRoute';
+import Root from './components/Root';
 import { AuthProvider } from './contexts/AuthContext';
 
 const queryClient = new QueryClient({
@@ -36,7 +37,7 @@ const queryClient = new QueryClient({
 const router = createBrowserRouter([
   {
     path: '/',
-    element: <ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>,
+    element: <Root />,
   },
   {
     path: '/login',
@@ -106,10 +107,7 @@ const router = createBrowserRouter([
     path: '/tag-management',
     element: <ProtectedRoute><Layout><TagManagement /></Layout></ProtectedRoute>,
   },
-  {
-    path: '/contact-list',
-    element: <ProtectedRoute><Layout><ContactList /></Layout></ProtectedRoute>,
-  },
+
   {
     path: '/oauth-callback',
     element: <OAuthCallback />,
