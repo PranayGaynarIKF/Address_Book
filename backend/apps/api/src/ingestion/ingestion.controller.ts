@@ -1,12 +1,12 @@
-import { Controller, Post, Get, UseGuards, Logger, Body } from '@nestjs/common';
+import { Controller, Post, Get, UseGuards, Logger, Body, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiSecurity, ApiBody } from '@nestjs/swagger';
 import { IngestionService } from './ingestion.service';
 import { ApiKeyGuard } from '../common/guards/api-key.guard';
 import { SourceSystem } from '../common/types/enums';
 
 interface GmailIngestionDto {
-  accountId: string;
-  accountEmail: string;
+  accountId?: string;
+  accountEmail?: string;
 }
 
 @ApiTags('Ingestion')
@@ -23,8 +23,7 @@ export class IngestionController {
   @ApiBody({ type: Object, description: 'Gmail account details' })
   @ApiResponse({ status: 200, description: 'Gmail ingestion completed successfully' })
   async runGmailIngestion(@Body() gmailData: GmailIngestionDto) {
-    this.logger.log(`Starting Gmail ingestion for account: ${gmailData.accountEmail}`);
-    return this.ingestionService.runGmailIngestion(gmailData.accountId, gmailData.accountEmail);
+    return this.ingestionService.runGmailIngestionAuto(gmailData.accountId, gmailData.accountEmail);
   }
 
   @Post('outlook/run')

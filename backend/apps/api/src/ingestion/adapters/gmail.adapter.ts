@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { google } from 'googleapis';
 import { SourceSystem } from '../../common/types/enums';
 import { GoogleAuthService } from '../../auth/google-auth.service';
+import { PrismaService } from '../../common/prisma/prisma.service';
 
 export interface GmailContact {
   id: string;
@@ -14,10 +15,14 @@ export interface GmailContact {
 @Injectable()
 export class GmailAdapter {
   private readonly logger = new Logger(GmailAdapter.name);
+  private oauth2Client: any;
   private gmail: any;
   private people: any;
 
-  constructor(private readonly googleAuthService: GoogleAuthService) {
+  constructor(
+    private readonly googleAuthService: GoogleAuthService,
+    private readonly prisma: PrismaService,
+  ) {
     // Don't initialize on startup - use lazy loading
   }
 
@@ -54,7 +59,30 @@ export class GmailAdapter {
   async fetchContacts(accountId?: string, accountEmail?: string): Promise<GmailContact[]> {
     this.logger.log(`Fetching contacts from Gmail using OAuth 2.0${accountEmail ? ` for account: ${accountEmail}` : ''}`);
     
-    // Lazy initialization - only initialize when actually needed
+    // If a specific accountId is provided, try to load its tokens first
+    if (accountId) {
+      try {
+        const rows = await this.prisma.$queryRaw<{ access_token: string; refresh_token: string }[]>`
+          SELECT TOP 1 [access_token], [refresh_token]
+          FROM [app].[EmailAuthTokens]
+          WHERE [id] = ${accountId} AND [service_type] = 'GMAIL' AND [is_valid] = 1
+          ORDER BY [updated_at] DESC
+        `;
+        if (rows?.length) {
+          this.oauth2Client = this.oauth2Client || new google.auth.OAuth2();
+          this.oauth2Client.setCredentials({
+            access_token: rows[0].access_token,
+            refresh_token: rows[0].refresh_token,
+          });
+          this.gmail = google.gmail({ version: 'v1', auth: this.oauth2Client });
+          this.people = google.people({ version: 'v1', auth: this.oauth2Client });
+        }
+      } catch (e) {
+        this.logger.warn('Failed to load OAuth tokens from database for this account. Falling back to global auth.', e as any);
+      }
+    }
+
+    // Lazy initialization - only initialize via global auth when not initialized by account tokens
     if (!this.gmail || !this.people) {
       await this.initializeGmailAPI();
     }

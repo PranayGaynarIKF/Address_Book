@@ -70,8 +70,8 @@ const GmailAccountModal: React.FC<{
               {...register('email', { 
                 required: 'Email is required',
                 pattern: {
-                  value: /^[^\s@]+@gmail\.com$/,
-                  message: 'Must be a valid Gmail address'
+                  value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+                  message: 'Must be a valid email address'
                 }
               })}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -115,10 +115,11 @@ const GmailAccountModal: React.FC<{
           <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
             <h4 className="text-sm font-medium text-blue-800 mb-2">Setup Instructions:</h4>
             <ol className="text-sm text-blue-700 space-y-1">
-              <li>1. Go to Google Cloud Console</li>
-              <li>2. Enable Gmail API</li>
-              <li>3. Create OAuth 2.0 credentials</li>
-              <li>4. Add authorized redirect URIs</li>
+              <li>1. Go to <a href="https://console.developers.google.com/" target="_blank" rel="noopener noreferrer" className="underline">Google Cloud Console</a></li>
+              <li>2. Create a new project or select existing one</li>
+              <li>3. Enable Gmail API</li>
+              <li>4. Create OAuth 2.0 credentials</li>
+              <li>5. Add redirect URI: <code className="bg-blue-100 px-1 rounded">http://localhost:4002/api/mail-accounts/oauth-callback</code></li>
             </ol>
           </div>
 

@@ -10,10 +10,11 @@ import { OutlookAdapter } from './adapters/outlook.adapter';
 import { InvoiceAdapter } from './adapters/invoice.adapter';
 import { MobileAdapter } from './adapters/mobile.adapter';
 import { GoogleAuthModule } from '../auth/google-auth.module';
+import { PrismaModule } from '../common/prisma/prisma.module';
 import { ContactsModule } from '../contacts/contacts.module';
 
 @Module({
-  imports: [GoogleAuthModule, ContactsModule],
+  imports: [GoogleAuthModule, ContactsModule, PrismaModule],
   controllers: [IngestionController],
   providers: [
     IngestionService,

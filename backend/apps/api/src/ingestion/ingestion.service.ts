@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { ZohoAdapter } from './adapters/zoho.adapter';
 import { GmailAdapter } from './adapters/gmail.adapter';
 import { OutlookAdapter } from './adapters/outlook.adapter';
@@ -8,6 +8,7 @@ import { StagingService } from './staging.service';
 import { CleanerService } from './cleaner/cleaner.service';
 import { WriterService } from './writer.service';
 import { SourceSystem } from '@/common/types/enums';
+import { PrismaService } from '../common/prisma/prisma.service';
 
 @Injectable()
 export class IngestionService {
@@ -22,6 +23,7 @@ export class IngestionService {
     private stagingService: StagingService,
     private cleanerService: CleanerService,
     private writerService: WriterService,
+    private prisma: PrismaService,
   ) {}
 
   async runIngestion(sourceSystem: SourceSystem): Promise<any> {
@@ -115,6 +117,35 @@ export class IngestionService {
       });
 
       throw error;
+    }
+  }
+
+  // New: auto-resolve account when params missing
+  async runGmailIngestionAuto(accountId?: string, accountEmail?: string): Promise<any> {
+    // If both provided, delegate
+    if (accountId && accountEmail) {
+      return this.runGmailIngestion(accountId, accountEmail);
+    }
+
+    // Resolve from latest valid Gmail token/account in DB
+    try {
+      type EmailAuthRow = { id: string; email: string };
+      const accounts = await this.prisma.$queryRaw<EmailAuthRow[]>`
+        SELECT TOP 1 [id], [email]
+        FROM [app].[EmailAuthTokens]
+        WHERE [service_type] = 'GMAIL' AND [is_valid] = 1
+        ORDER BY [updated_at] DESC
+      `;
+
+      if (!accounts || accounts.length === 0) {
+        throw new BadRequestException('No connected Gmail accounts found. Please connect Gmail first.');
+      }
+
+      const resolved = accounts[0];
+      return this.runGmailIngestion(resolved.id, resolved.email);
+    } catch (e) {
+      this.logger.error('Failed to auto-resolve Gmail account for ingestion', e);
+      throw e;
     }
   }
 
