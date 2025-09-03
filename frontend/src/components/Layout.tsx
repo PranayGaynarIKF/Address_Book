@@ -37,15 +37,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Dashboard', href: '/', icon: Home },
     { name: 'Contacts', href: '/contacts', icon: Users },
     { name: 'Contact List', href: '/contact-list', icon: List },
-    { name: 'Owners', href: '/owners', icon: UserCheck },
-    { name: 'Templates', href: '/templates', icon: FileText },
-    { name: 'Messages', href: '/messages', icon: MessageSquare },
-    { name: 'WhatsApp', href: '/whatsapp', icon: MessageCircle },
-    { name: 'Email', href: '/email', icon: Mail },
-    { name: 'Mail Accounts', href: '/mail-accounts', icon: Shield },
+    // Hidden per request: Owners, Templates, Messages, WhatsApp, Mail Accounts, Merge History
+    // { name: 'Owners', href: '/owners', icon: UserCheck },
+    // { name: 'Templates', href: '/templates', icon: FileText },
+    // { name: 'Messages', href: '/messages', icon: MessageSquare },
+    // { name: 'WhatsApp', href: '/whatsapp', icon: MessageCircle },
+    // { name: 'Mail Accounts', href: '/mail-accounts', icon: Shield },
     { name: 'Sync', href: '/ingestion', icon: Database },
     { name: 'Data Sources', href: '/data-sources', icon: LinkIcon },
-    { name: 'Merge History', href: '/merge-history', icon: History },
+    // { name: 'Merge History', href: '/merge-history', icon: History },
     { name: 'Tag Management', href: '/tag-management', icon: Tag },
   ];
 

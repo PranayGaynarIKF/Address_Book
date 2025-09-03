@@ -289,6 +289,11 @@ export class IngestionService {
       const { contacts: deduplicatedContacts, duplicates, conflicts, report } = 
         await this.cleanerService.handleDeduplication(cleanedContacts);
       this.logger.log(`✅ Deduplication complete: ${duplicates} duplicates, ${conflicts} conflicts`);
+
+      // Fallback: if dedup produced zero, write cleaned contacts
+      const contactsToWrite = (deduplicatedContacts && deduplicatedContacts.length > 0)
+        ? deduplicatedContacts
+        : cleanedContacts;
       
       // Validate report data size
       const reportSize = JSON.stringify(report).length;
@@ -303,8 +308,8 @@ export class IngestionService {
 
       // Write to final contacts table
       this.logger.log('💾 Writing contacts to final table...');
-      const { inserted, updated, total } = await this.writerService.writeContactsToFinal(deduplicatedContacts);
-      this.logger.log(`✅ Database write complete: ${inserted} inserted, ${updated} updated`);
+      const { inserted, updated, total } = await this.writerService.writeContactsToFinal(contactsToWrite);
+      this.logger.log(`✅ Database write complete: ${inserted} inserted, ${updated} updated (total processed for write: ${total})`);
 
       // Associate with owners
       this.logger.log('👥 Associating contacts with owners...');

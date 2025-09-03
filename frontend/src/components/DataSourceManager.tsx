@@ -45,7 +45,7 @@ interface InvoiceDatabase {
 
 const DataSourceManager: React.FC = () => {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'gmail' | 'vcf' | 'invoice' | 'sync'>('gmail');
+  const [activeTab, setActiveTab] = useState<'gmail' | 'vcf' | 'invoice'>('gmail');
   const [isGmailModalOpen, setIsGmailModalOpen] = useState(false);
   const [isVcfModalOpen, setIsVcfModalOpen] = useState(false);
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
@@ -508,7 +508,6 @@ const DataSourceManager: React.FC = () => {
         <nav className="-mb-px flex space-x-8">
           {[
             { id: 'gmail', label: 'Gmail Accounts', icon: Mail },
-            { id: 'sync', label: 'Sync Contacts', icon: Upload },
             { id: 'vcf', label: 'VCF Files', icon: FileText },
             { id: 'invoice', label: 'Invoice Databases', icon: Database }
           ].map((tab) => (
@@ -531,7 +530,6 @@ const DataSourceManager: React.FC = () => {
       {/* Tab Content */}
       <div className="min-h-[600px]">
         {activeTab === 'gmail' && renderGmailTab()}
-        {activeTab === 'sync' && renderSyncTab()}
         {activeTab === 'vcf' && renderVcfTab()}
         {activeTab === 'invoice' && renderInvoiceTab()}
       </div>

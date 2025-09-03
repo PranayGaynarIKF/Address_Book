@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { 
   Search, 
   Filter, 
@@ -13,7 +13,10 @@ import {
   MoreVertical,
   ChevronDown,
   X,
-  Tag
+  Tag,
+  CheckSquare,
+  Check,
+  XCircle
 } from 'lucide-react';
 import { contactsAPI } from '../../services/api';
 // Excel export functionality - using a simple CSV approach instead of XLSX
@@ -68,6 +71,7 @@ interface ContactListProps {
 }
 
 const ContactList: React.FC<ContactListProps> = ({ className = '' }) => {
+  const queryClient = useQueryClient();
   // State for filters and search
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('all');
@@ -75,6 +79,11 @@ const ContactList: React.FC<ContactListProps> = ({ className = '' }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setCurrentPageSize] = useState(10); // Reduced from 20 to 10 for faster loading
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  // Bulk selection & tag modal
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectAllPage, setSelectAllPage] = useState(false);
+  const [isTagModalOpen, setIsTagModalOpen] = useState(false);
+  const [selectedTagId, setSelectedTagId] = useState<string>('');
 
   // Manual search function
   const handleSearch = () => {
@@ -118,6 +127,64 @@ const ContactList: React.FC<ContactListProps> = ({ className = '' }) => {
   const filteredContacts = useMemo(() => contacts?.data?.data || [], [contacts?.data?.data]);
   const totalContacts = contacts?.data?.total || 0;
   const totalPages = Math.ceil(totalContacts / pageSize);
+
+  // Fetch available tags for modal
+  const { data: tags } = useQuery({
+    queryKey: ['tags-list'],
+    queryFn: async () => {
+      const res = await fetch('http://localhost:4002/tags', { headers: { accept: '*/*' } });
+      if (!res.ok) throw new Error('Failed to load tags');
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Apply tag mutation (bulk)
+  const applyTagMutation = useMutation({
+    mutationFn: async ({ tagId, contactIds }: { tagId: string; contactIds: string[] }) => {
+      const res = await fetch(`http://localhost:4002/tags/${tagId}/contacts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', accept: '*/*' },
+        body: JSON.stringify({ contactIds }),
+      });
+      if (!res.ok) throw new Error('Failed to apply tag');
+      return res.json();
+    },
+    onSuccess: () => {
+      setIsTagModalOpen(false);
+      setSelectedIds(new Set());
+      setSelectAllPage(false);
+      queryClient.invalidateQueries({ queryKey: ['contactList'] });
+    },
+  });
+
+  const toggleSelectOne = (id: string) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setSelectedIds(next);
+  };
+
+  const toggleSelectAllPage = () => {
+    const nextVal = !selectAllPage;
+    setSelectAllPage(nextVal);
+    const next = new Set<string>(selectedIds);
+    if (nextVal) {
+      filteredContacts.forEach((c: any) => next.add(c.id));
+    } else {
+      filteredContacts.forEach((c: any) => next.delete(c.id));
+    }
+    setSelectedIds(next);
+  };
+
+  const openApplyTag = () => {
+    if (selectedIds.size === 0) return;
+    setIsTagModalOpen(true);
+  };
+
+  const confirmApplyTag = () => {
+    if (!selectedTagId) return;
+    applyTagMutation.mutate({ tagId: selectedTagId, contactIds: Array.from(selectedIds) });
+  };
 
   // Export to CSV function
   const handleExportToCSV = () => {
@@ -355,6 +422,32 @@ const ContactList: React.FC<ContactListProps> = ({ className = '' }) => {
               </div>
             )}
           </div>
+
+          {/* Bulk actions when selection active */}
+          {selectedIds.size > 0 && (
+            <div className="mt-4 flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <div className="flex items-center gap-2 text-blue-800 text-sm">
+                <CheckSquare className="h-4 w-4" />
+                <span>
+                  {selectedIds.size} selected
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={openApplyTag}
+                  className="px-3 py-1.5 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700"
+                >
+                  Apply Tag
+                </button>
+                <button
+                  onClick={() => { setSelectedIds(new Set()); setSelectAllPage(false); }}
+                  className="px-3 py-1.5 border rounded-md text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  Clear Selection
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -406,6 +499,14 @@ const ContactList: React.FC<ContactListProps> = ({ className = '' }) => {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
+                  <th className="px-6 py-3">
+                    <input
+                      type="checkbox"
+                      checked={selectAllPage}
+                      onChange={toggleSelectAllPage}
+                      className="h-4 w-4 text-primary-600 border-gray-300 rounded"
+                    />
+                  </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Contact
                   </th>
@@ -429,6 +530,14 @@ const ContactList: React.FC<ContactListProps> = ({ className = '' }) => {
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredContacts.map((contact) => (
                   <tr key={contact.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(contact.id)}
+                        onChange={() => toggleSelectOne(contact.id)}
+                        className="h-4 w-4 text-primary-600 border-gray-300 rounded"
+                      />
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-10 w-10">
@@ -575,6 +684,48 @@ const ContactList: React.FC<ContactListProps> = ({ className = '' }) => {
                 className="px-2 text-xs text-gray-500 hover:text-gray-700 disabled:opacity-50"
               >
                 Last
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Apply Tag Modal */}
+      {isTagModalOpen && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Apply Tag to {selectedIds.size} contacts</h3>
+              <button onClick={() => setIsTagModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <XCircle className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <label className="block text-sm font-medium text-gray-700">Select Tag</label>
+              <select
+                value={selectedTagId}
+                onChange={(e) => setSelectedTagId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              >
+                <option value="">Choose a tag...</option>
+                {(tags || []).map((t: any) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="mt-6 flex items-center justify-end gap-2">
+              <button
+                onClick={() => setIsTagModalOpen(false)}
+                className="px-4 py-2 border rounded-md text-sm hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmApplyTag}
+                disabled={!selectedTagId || applyTagMutation.isPending}
+                className="px-4 py-2 bg-primary-600 text-white rounded-md text-sm hover:bg-primary-700 disabled:opacity-50"
+              >
+                {applyTagMutation.isPending ? 'Applying...' : 'Apply Tag'}
               </button>
             </div>
           </div>

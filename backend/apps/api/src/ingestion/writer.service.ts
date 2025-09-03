@@ -18,26 +18,58 @@ export class WriterService {
     let inserted = 0;
     let updated = 0;
 
+    const sanitizePhone = (value?: string | null): string | null => {
+      if (!value) return null;
+      const digits = String(value).replace(/[^0-9]+/g, '');
+      if (digits.length === 0) return null;
+      if (digits.length === 10) return `+91${digits}`; // default to IN if plain 10 digits
+      if (digits.length === 11 && digits.startsWith('0')) return `+91${digits.slice(1)}`;
+      if (digits.length === 12 && digits.startsWith('91')) return `+${digits}`;
+      if (digits.startsWith('+' )) return `+${digits.replace(/^\++/, '')}`;
+      return `+${digits}`;
+    };
+
     for (const stagingContact of stagingContacts) {
       try {
-        // Check if contact already exists by source system + record ID using raw SQL
+        // Resolve fields from either camelCase (in-memory) or snake_case (DB rows)
+        const sourceSystem = stagingContact.sourceSystem ?? stagingContact.source_system ?? null;
+        const sourceRecordId = stagingContact.sourceRecordId ?? stagingContact.source_record_id ?? null;
+        const normName = stagingContact.normName ?? stagingContact.norm_name ?? null;
+        const normCompany = stagingContact.normCompany ?? stagingContact.norm_company ?? null;
+        const normEmail = stagingContact.normEmail ?? stagingContact.norm_email ?? null;
+        const normPhoneE164 = stagingContact.normPhoneE164 ?? stagingContact.norm_phone_e164 ?? null;
+        const rawName = stagingContact.rawName ?? stagingContact.raw_name ?? null;
+        const rawCompany = stagingContact.rawCompany ?? stagingContact.raw_company ?? null;
+        const rawEmail = stagingContact.rawEmail ?? stagingContact.raw_email ?? null;
+        const rawPhone = stagingContact.rawPhone ?? stagingContact.raw_phone ?? null;
+        const relationshipType = stagingContact.relationshipType ?? stagingContact.relationship_type ?? null;
+        const qualityScore = stagingContact.qualityScore ?? stagingContact.data_quality_score ?? stagingContact.quality_score ?? null;
+
+        // Prefer normalized email/phone, else raw
+        const matchEmail = (normEmail ?? rawEmail ?? null);
+        const matchPhone = sanitizePhone(normPhoneE164 ?? rawPhone ?? null);
+
+        // Check if contact already exists by (source_system + source_record_id) OR by email (case-insensitive)
         const existing = await this.prisma.$queryRaw`
-          SELECT TOP 1 * FROM [app].[Contacts] 
-          WHERE source_system = ${stagingContact.sourceSystem} 
-          AND source_record_id = ${stagingContact.sourceRecordId}
+          SELECT TOP 1 * FROM [app].[Contacts]
+          WHERE (source_system = ${sourceSystem} AND source_record_id = ${sourceRecordId})
+             OR ((${matchEmail} IS NOT NULL) AND LOWER(email) = LOWER(${matchEmail}))
+             OR ((${matchPhone} IS NOT NULL) AND 
+                 REPLACE(REPLACE(REPLACE(mobileno,'+',''),' ',''),'-','') = 
+                 REPLACE(REPLACE(REPLACE(${matchPhone},'+',''),' ',''),'-',''))
         `;
 
         if (existing && Array.isArray(existing) && existing.length > 0) {
           // Update existing contact using raw SQL
           await this.prisma.$executeRaw`
-            UPDATE [app].[Contacts] 
+            UPDATE [app].[Contacts]
             SET 
-              name = ${stagingContact.normName},
-              company_name = ${stagingContact.normCompany},
-              email = ${stagingContact.normEmail},
-              mobileno = ${stagingContact.normPhoneE164},
-              relationship_type = ${stagingContact.relationshipType},
-              data_quality_score = ${stagingContact.qualityScore},
+              name = COALESCE(${normName ?? rawName}, name),
+              company_name = COALESCE(${normCompany ?? rawCompany}, company_name),
+              email = COALESCE(${normEmail ?? rawEmail}, email),
+              mobileno = COALESCE(${sanitizePhone(normPhoneE164 ?? rawPhone)}, mobileno),
+              relationship_type = COALESCE(${relationshipType}, relationship_type),
+              data_quality_score = COALESCE(${qualityScore}, data_quality_score),
               updated_at = GETDATE()
             WHERE id = ${existing[0].id}
           `;
@@ -51,10 +83,10 @@ export class WriterService {
               source_system, source_record_id, data_quality_score, 
               is_whatsapp_reachable, created_at, updated_at
             ) VALUES (
-              ${contactId}, ${stagingContact.normName}, ${stagingContact.normCompany}, 
-              ${stagingContact.normEmail}, ${stagingContact.normPhoneE164}, 
-              ${stagingContact.relationshipType}, ${stagingContact.sourceSystem}, 
-              ${stagingContact.sourceRecordId}, ${stagingContact.qualityScore}, 
+              ${contactId}, ${normName ?? rawName}, ${normCompany ?? rawCompany}, 
+              ${normEmail ?? rawEmail}, ${sanitizePhone(normPhoneE164 ?? rawPhone)}, 
+              ${relationshipType}, ${sourceSystem}, 
+              ${sourceRecordId}, ${qualityScore}, 
               1, GETDATE(), GETDATE()
             )
           `;
@@ -68,7 +100,7 @@ export class WriterService {
     return {
       inserted,
       updated,
-      total: stagingContacts.length,
+      total: inserted + updated,
     };
   }
 
