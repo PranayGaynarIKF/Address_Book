@@ -125,3 +125,6 @@ docker-compose*.yml
 
 # Local development
 .local/
+
+# Git operation leftovers
+e -i HEAD~2
