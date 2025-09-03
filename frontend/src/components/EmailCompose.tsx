@@ -46,7 +46,7 @@ interface Tag {
 const EmailCompose: React.FC<EmailComposeProps> = ({ isOpen, onClose, replyTo }) => {
   // API Configuration
   const API_BASE = 'http://localhost:4002';
-  const API_KEY = '9oAlpAhPvkKOGwuo6LiU8CPyRPxXSDoRVq1PFD0tkN';
+  const API_KEY = '0149f6cf158a88461d1fca0d6da773ac'; // Email API key (not WhatsApp)
   
   const [draft, setDraft] = useState<EmailDraft>({
     to: replyTo ? [replyTo.to] : [],

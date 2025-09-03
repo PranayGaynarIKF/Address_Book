@@ -29,7 +29,7 @@ export class GoogleAuthService {
   private initializeOAuth2Client() {
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-    const port = process.env.PORT || 4000;
+    const port = process.env.PORT || 4002;
     
     if (!clientId || !clientSecret) {
       this.logger.error('GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are required');

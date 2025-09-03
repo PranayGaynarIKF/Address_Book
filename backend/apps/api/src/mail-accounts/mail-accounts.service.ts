@@ -82,13 +82,73 @@ export class MailAccountsService {
 
   async findAll() {
     try {
+      // Fetch mail accounts from EmailAuthTokens table (where OAuth tokens are stored)
       const accounts = await this.prisma.$queryRaw`
-        SELECT id, name, email, serviceType, isActive, isEncrypted, lastSync, syncStatus, createdAt, updatedAt
-        FROM "app"."MailAccounts"
-        ORDER BY createdAt DESC
+        SELECT 
+          t.[id],
+          t.[email] as name,
+          t.[email],
+          t.[service_type] as serviceType,
+          t.[is_valid] as isActive,
+          t.[access_token],
+          t.[refresh_token],
+          t.[expires_at],
+          0 as isEncrypted,
+          NULL as lastSync,
+          'success' as syncStatus,
+          t.[created_at] as createdAt,
+          t.[updated_at] as updatedAt
+        FROM [app].[EmailAuthTokens] t
+        WHERE t.[is_valid] = 1
+        ORDER BY t.[created_at] DESC
       ` as any[];
-      return accounts;
+      
+      console.log(`📧 Found ${accounts.length} mail accounts from EmailAuthTokens`);
+      
+      // For Gmail accounts, try to get the actual email if it's showing as unknown
+      for (const account of accounts) {
+        if (account.serviceType === 'GMAIL' && account.email === 'unknown@gmail.com') {
+          console.log(`   Attempting to get real email for Gmail account ${account.id}...`);
+          
+          // Check if token is expired
+          const now = new Date();
+          const expiresAt = account.expires_at ? new Date(account.expires_at) : null;
+          const isExpired = expiresAt && expiresAt < now;
+          
+          let accessToken = account.access_token;
+          
+          // If expired and we have refresh token, try to refresh
+          if (isExpired && account.refresh_token) {
+            console.log('   Token expired, attempting refresh...');
+            const newAccessToken = await this.refreshGoogleToken(account.refresh_token);
+            if (newAccessToken) {
+              accessToken = newAccessToken;
+              console.log('   Token refreshed successfully');
+            } else {
+              console.log('   Token refresh failed, skipping email update');
+              continue;
+            }
+          }
+          
+          // Try to get the real email
+          const realEmail = await this.getUserEmailFromGoogle(accessToken);
+          if (realEmail && realEmail !== 'unknown@gmail.com') {
+            console.log(`   Found real email: ${realEmail}`);
+            account.email = realEmail;
+            account.name = realEmail;
+          }
+        }
+      }
+      
+      // Remove sensitive data before returning
+      const cleanAccounts = accounts.map(account => {
+        const { access_token, refresh_token, expires_at, ...cleanAccount } = account;
+        return cleanAccount;
+      });
+      
+      return cleanAccounts;
     } catch (error) {
+      console.error('❌ Error fetching mail accounts:', error);
       throw new Error(`Failed to fetch mail accounts: ${error.message}`);
     }
   }
@@ -109,7 +169,7 @@ export class MailAccountsService {
 
   async generateGoogleOAuthUrl(): Promise<string> {
     const clientId = process.env.GOOGLE_CLIENT_ID;
-    const redirectUri = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/oauth-callback';
+    const redirectUri = 'http://localhost:4002/api/mail-accounts/oauth-callback'; // Fixed: Use the correct callback endpoint
     
     if (!clientId) {
       throw new Error('Google OAuth client ID not configured');
@@ -231,7 +291,7 @@ export class MailAccountsService {
   async exchangeCodeForTokens(code: string): Promise<any> {
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-    const redirectUri = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/oauth-callback';
+    const redirectUri = 'http://localhost:4002/api/mail-accounts/oauth-callback'; // Fixed: Use the correct callback endpoint
     
     if (!clientId || !clientSecret) {
       throw new Error('Google OAuth client credentials not configured');
@@ -258,9 +318,187 @@ export class MailAccountsService {
       }
 
       const tokens = await response.json();
+      
+      console.log('🔄 OAuth tokens received:', {
+        access_token: tokens.access_token ? tokens.access_token.substring(0, 20) + '...' : 'NULL',
+        refresh_token: tokens.refresh_token ? tokens.refresh_token.substring(0, 20) + '...' : 'NULL',
+        expires_in: tokens.expires_in
+      });
+      
+      // AUTO-SAVE: Save email service configuration and tokens to database
+      try {
+        console.log('🔄 Starting auto-save process...');
+        await this.autoSaveGmailConfiguration(clientId, clientSecret, redirectUri, tokens);
+        console.log('✅ Auto-save completed successfully!');
+      } catch (autoSaveError) {
+        console.error('❌ Auto-save failed:', autoSaveError.message);
+        console.error('Auto-save error details:', autoSaveError);
+        // Don't throw error - let OAuth flow continue
+      }
+      
       return tokens;
     } catch (error) {
       throw new Error(`OAuth token exchange failed: ${error.message}`);
+    }
+  }
+
+  // NEW METHOD: Auto-save Gmail configuration and tokens
+  private async autoSaveGmailConfiguration(
+    clientId: string, 
+    clientSecret: string, 
+    redirectUri: string, 
+    tokens: any
+  ): Promise<void> {
+    try {
+      console.log('🔄 Auto-saving Gmail configuration and tokens...');
+      console.log('📝 Input data:', {
+        clientId: clientId ? 'Set' : 'Missing',
+        clientSecret: clientSecret ? 'Set' : 'Missing',
+        redirectUri,
+        hasAccessToken: !!tokens.access_token,
+        hasRefreshToken: !!tokens.refresh_token,
+        expiresIn: tokens.expires_in
+      });
+      
+      const userId = 'current-user-id'; // You can modify this to get actual user ID
+      const serviceType = 'GMAIL';
+      
+      // Step 1: Save Email Service Configuration
+      console.log('🔧 Step 1: Saving Email Service Configuration...');
+      const configId = require('crypto').randomUUID();
+      console.log(`   Config ID: ${configId}`);
+      
+      await this.prisma.$executeRaw`
+        INSERT INTO [app].[EmailServiceConfigs] 
+        ([id], [user_id], [service_type], [client_id], [client_secret], [redirect_uri], [scopes], [is_active], [created_at], [updated_at])
+        VALUES (${configId}, ${userId}, ${serviceType}, ${clientId}, ${clientSecret}, ${redirectUri}, ${JSON.stringify([
+          'https://www.googleapis.com/auth/gmail.readonly',
+          'https://www.googleapis.com/auth/gmail.send',
+          'https://www.googleapis.com/auth/gmail.modify',
+          'https://www.googleapis.com/auth/gmail.labels'
+        ])}, 1, GETDATE(), GETDATE())
+      `;
+      console.log('✅ Email Service Configuration saved!');
+      
+      // Step 2: Get user's email from Google
+      console.log('🔧 Step 2: Getting user email from Google...');
+      const userEmail = await this.getUserEmailFromGoogle(tokens.access_token);
+      console.log(`   User email: ${userEmail}`);
+      
+      // Step 3: Save Email Auth Token
+      console.log('🔧 Step 3: Saving Email Auth Token...');
+      const tokenId = require('crypto').randomUUID();
+      console.log(`   Token ID: ${tokenId}`);
+      
+      // First, invalidate any existing tokens for this user and service
+      console.log('   Invalidating existing tokens...');
+      await this.prisma.$executeRaw`
+        UPDATE [app].[EmailAuthTokens]
+        SET [is_valid] = 0, [updated_at] = GETDATE()
+        WHERE [user_id] = ${userId} AND [service_type] = ${serviceType}
+      `;
+      console.log('   Existing tokens invalidated');
+      
+      // Insert new token
+      const expiresAt = new Date(Date.now() + ((tokens.expires_in || 3600) * 1000));
+      console.log(`   Expires at: ${expiresAt}`);
+      
+      await this.prisma.$executeRaw`
+        INSERT INTO [app].[EmailAuthTokens]
+        ([id], [user_id], [service_type], [access_token], [refresh_token], [expires_at], [scope], [email], [is_valid], [created_at], [updated_at])
+        VALUES (${tokenId}, ${userId}, ${serviceType}, ${tokens.access_token}, ${tokens.refresh_token || ''}, ${expiresAt}, ${JSON.stringify([
+          'https://www.googleapis.com/auth/gmail.readonly',
+          'https://www.googleapis.com/auth/gmail.send',
+          'https://www.googleapis.com/auth/gmail.modify',
+          'https://www.googleapis.com/auth/gmail.labels'
+        ])}, ${userEmail}, 1, GETDATE(), GETDATE())
+      `;
+      console.log('✅ Email Auth Token saved!');
+      console.log(`📧 Gmail account connected: ${userEmail}`);
+      
+    } catch (error) {
+      console.error('❌ Auto-save failed:', error.message);
+      console.error('❌ Auto-save error details:', {
+        code: error.code,
+        message: error.message,
+        meta: error.meta,
+        stack: error.stack
+      });
+      // Don't throw error - let OAuth flow continue
+    }
+  }
+
+  // Helper method to refresh Google access token
+  private async refreshGoogleToken(refreshToken: string): Promise<string | null> {
+    try {
+      console.log('   Refreshing Google access token...');
+      
+      const response = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          client_id: process.env.GOOGLE_CLIENT_ID || '',
+          client_secret: process.env.GOOGLE_CLIENT_SECRET || '',
+          refresh_token: refreshToken,
+          grant_type: 'refresh_token',
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`   Token refresh failed: ${response.status} - ${errorText}`);
+        return null;
+      }
+      
+      const tokenData = await response.json();
+      console.log('   Token refreshed successfully');
+      
+      return tokenData.access_token;
+    } catch (error) {
+      console.error('   Failed to refresh token:', error.message);
+      return null;
+    }
+  }
+
+  // Helper method to get user email from Google
+  private async getUserEmailFromGoogle(accessToken: string): Promise<string> {
+    try {
+      console.log('   Fetching user profile from Google...');
+      
+      // Use Gmail API endpoint (this works with Gmail tokens)
+      const response = await fetch('https://www.googleapis.com/gmail/v1/users/me/profile', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      console.log(`   Google API response status: ${response.status}`);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`   Google API error: ${response.status} - ${errorText}`);
+        
+        // If 401, the token is expired
+        if (response.status === 401) {
+          console.log('   Token appears to be expired, returning unknown email');
+          return 'unknown@gmail.com';
+        }
+        
+        throw new Error(`Failed to get user profile from Google: ${response.status}`);
+      }
+      
+      const profile = await response.json();
+      console.log(`   Google profile response:`, profile);
+      
+      // Gmail API returns emailAddress field, not email
+      return profile.emailAddress || 'unknown@gmail.com';
+    } catch (error) {
+      console.error('   Failed to get user email from Google:', error.message);
+      return 'unknown@gmail.com';
     }
   }
 

@@ -1,15 +1,26 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { Eye, EyeOff, Mail, Lock, ArrowRight, Shield, Smartphone } from 'lucide-react';
 import { authAPI } from '../services/api';
 import { LoginDto } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 
 const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const location = useLocation();
+  const { login, isAuthenticated } = useAuth();
+
+  // Redirect if already authenticated
+  React.useEffect(() => {
+    if (isAuthenticated) {
+      const from = location.state?.from?.pathname || '/';
+      navigate(from, { replace: true });
+    }
+  }, [isAuthenticated, navigate, location.state?.from?.pathname]);
 
   const {
     register,
@@ -22,11 +33,38 @@ const Login: React.FC = () => {
     setError(null);
     
     try {
+      console.log('🔐 Attempting login with:', { email: data.email, passwordLength: data.password.length });
+      
       const response = await authAPI.login(data);
-      localStorage.setItem('token', response.data.token);
-      navigate('/');
+      console.log('✅ Login response:', response.data);
+      
+      // Store the access token
+      login(response.data.access_token);
+      
+      // Redirect to the page they were trying to access, or dashboard
+      const from = location.state?.from?.pathname || '/';
+      navigate(from, { replace: true });
+      
+      // Show success message
+      console.log('✅ Login successful, redirecting to:', from);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Login failed. Please try again.');
+      console.error('❌ Login error:', err);
+      console.error('❌ Error response:', err.response?.data);
+      console.error('❌ Error status:', err.response?.status);
+      
+      let errorMessage = 'Login failed. Please try again.';
+      
+      if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err.response?.status === 401) {
+        errorMessage = 'Invalid email or password.';
+      } else if (err.response?.status === 0) {
+        errorMessage = 'Cannot connect to server. Please check if backend is running.';
+      } else if (err.code === 'ERR_NETWORK') {
+        errorMessage = 'Network error. Please check your connection.';
+      }
+      
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -169,6 +207,17 @@ const Login: React.FC = () => {
                   )}
                 </div>
               </button>
+
+              {/* Forgot Password Link */}
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => alert('Forgot password functionality coming soon!')}
+                  className="text-sm text-primary-600 hover:text-primary-700 font-medium transition-colors duration-200 hover:underline"
+                >
+                  Forgot your password?
+                </button>
+              </div>
             </form>
           </div>
         </div>
@@ -219,7 +268,15 @@ const Login: React.FC = () => {
 
         {/* Footer */}
         <div className="text-center text-sm text-gray-500 animate-fade-in-up" style={{ animationDelay: '600ms' }}>
-          <p>Don't have an account? Contact your administrator</p>
+          <p>
+            Don't have an account?{' '}
+            <Link 
+              to="/register" 
+              className="text-primary-600 hover:text-primary-700 font-medium transition-colors duration-200"
+            >
+              Sign up here
+            </Link>
+          </p>
         </div>
       </div>
     </div>

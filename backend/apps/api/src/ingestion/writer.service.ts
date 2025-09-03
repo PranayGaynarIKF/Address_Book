@@ -20,42 +20,44 @@ export class WriterService {
 
     for (const stagingContact of stagingContacts) {
       try {
-        // Check if contact already exists by source system + record ID
-        const existing = await this.prisma.contact.findFirst({
-          where: {
-            sourceSystem: stagingContact.sourceSystem,
-            sourceRecordId: stagingContact.sourceRecordId,
-          },
-        });
+        // Check if contact already exists by source system + record ID using raw SQL
+        const existing = await this.prisma.$queryRaw`
+          SELECT TOP 1 * FROM [app].[Contacts] 
+          WHERE source_system = ${stagingContact.sourceSystem} 
+          AND source_record_id = ${stagingContact.sourceRecordId}
+        `;
 
-        if (existing) {
-          // Update existing contact
-          await this.prisma.contact.update({
-            where: { id: existing.id },
-            data: {
-              name: stagingContact.normName,
-              companyName: stagingContact.normCompany,
-              email: stagingContact.normEmail,
-              mobileE164: stagingContact.normPhoneE164,
-              relationshipType: stagingContact.relationshipType,
-              dataQualityScore: stagingContact.qualityScore,
-            },
-          });
+        if (existing && Array.isArray(existing) && existing.length > 0) {
+          // Update existing contact using raw SQL
+          await this.prisma.$executeRaw`
+            UPDATE [app].[Contacts] 
+            SET 
+              name = ${stagingContact.normName},
+              company_name = ${stagingContact.normCompany},
+              email = ${stagingContact.normEmail},
+              mobileno = ${stagingContact.normPhoneE164},
+              relationship_type = ${stagingContact.relationshipType},
+              data_quality_score = ${stagingContact.qualityScore},
+              updated_at = GETDATE()
+            WHERE id = ${existing[0].id}
+          `;
           updated++;
         } else {
-          // Create new contact
-          await this.prisma.contact.create({
-            data: {
-              name: stagingContact.normName,
-              companyName: stagingContact.normCompany,
-              email: stagingContact.normEmail,
-              mobileE164: stagingContact.normPhoneE164,
-              relationshipType: stagingContact.relationshipType,
-              sourceSystem: stagingContact.sourceSystem,
-              sourceRecordId: stagingContact.sourceRecordId,
-              dataQualityScore: stagingContact.qualityScore,
-            },
-          });
+          // Create new contact using raw SQL
+          const contactId = require('crypto').randomUUID();
+          await this.prisma.$executeRaw`
+            INSERT INTO [app].[Contacts] (
+              id, name, company_name, email, mobileno, relationship_type, 
+              source_system, source_record_id, data_quality_score, 
+              is_whatsapp_reachable, created_at, updated_at
+            ) VALUES (
+              ${contactId}, ${stagingContact.normName}, ${stagingContact.normCompany}, 
+              ${stagingContact.normEmail}, ${stagingContact.normPhoneE164}, 
+              ${stagingContact.relationshipType}, ${stagingContact.sourceSystem}, 
+              ${stagingContact.sourceRecordId}, ${stagingContact.qualityScore}, 
+              1, GETDATE(), GETDATE()
+            )
+          `;
           inserted++;
         }
       } catch (error) {
@@ -75,46 +77,44 @@ export class WriterService {
 
     for (const stagingContact of stagingContacts) {
       try {
-        // Find or create owner
-        let owner = await this.prisma.owner.findUnique({
-          where: { name: stagingContact.dataOwnerName },
-        });
+        // Handle NULL or empty dataOwnerName
+        const ownerName = stagingContact.dataOwnerName?.trim() || 'Unknown Owner';
+        
+        // Find or create owner using raw SQL
+        let owner = await this.prisma.$queryRaw`
+          SELECT TOP 1 * FROM [app].[Owners] WHERE name = ${ownerName}
+        `;
 
-        if (!owner) {
-          owner = await this.prisma.owner.create({
-            data: {
-              name: stagingContact.dataOwnerName,
-              isActive: true,
-            },
-          });
+        if (!owner || !Array.isArray(owner) || owner.length === 0) {
+          // Create new owner using raw SQL
+          const ownerId = require('crypto').randomUUID();
+          await this.prisma.$executeRaw`
+            INSERT INTO [app].[Owners] (id, name, is_active, created_at, updated_at)
+            VALUES (${ownerId}, ${ownerName}, 1, GETDATE(), GETDATE())
+          `;
+          owner = [{ id: ownerId }];
         }
 
-        // Find the contact
-        const contact = await this.prisma.contact.findFirst({
-          where: {
-            sourceSystem: stagingContact.sourceSystem,
-            sourceRecordId: stagingContact.sourceRecordId,
-          },
-        });
+        // Find the contact using raw SQL
+        const contact = await this.prisma.$queryRaw`
+          SELECT TOP 1 * FROM [app].[Contacts] 
+          WHERE source_system = ${stagingContact.sourceSystem} 
+          AND source_record_id = ${stagingContact.sourceRecordId}
+        `;
 
-        if (contact) {
-          // Check if association already exists
-          const existingAssociation = await this.prisma.contactOwner.findUnique({
-            where: {
-              contactId_ownerId: {
-                contactId: contact.id,
-                ownerId: owner.id,
-              },
-            },
-          });
+        if (contact && Array.isArray(contact) && contact.length > 0) {
+          // Check if association already exists using raw SQL
+          const existingAssociation = await this.prisma.$queryRaw`
+            SELECT TOP 1 * FROM [app].[ContactOwners] 
+            WHERE contact_id = ${contact[0].id} AND owner_id = ${owner[0].id}
+          `;
 
-          if (!existingAssociation) {
-            await this.prisma.contactOwner.create({
-              data: {
-                contactId: contact.id,
-                ownerId: owner.id,
-              },
-            });
+          if (!existingAssociation || !Array.isArray(existingAssociation) || existingAssociation.length === 0) {
+            // Create association using raw SQL
+            await this.prisma.$executeRaw`
+              INSERT INTO [app].[ContactOwners] (contact_id, owner_id, created_at, updated_at)
+              VALUES (${contact[0].id}, ${owner[0].id}, GETDATE(), GETDATE())
+            `;
           }
         }
       } catch (error) {

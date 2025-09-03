@@ -29,9 +29,7 @@ async function bootstrap() {
   
   // CORS configuration - more explicit for development
   app.enableCors({
-    origin: process.env.NODE_ENV === 'production' 
-      ? ['https://yourdomain.com'] 
-      : ['http://localhost:3000', 'http://localhost:3001', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001'],
+    origin: (origin, callback) => callback(null, true),
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'X-API-Key', 'Accept'],
@@ -147,7 +145,7 @@ async function bootstrap() {
     customSiteTitle: 'Contacts API Documentation',
   });
 
-  const port = process.env.PORT || 4000;
+  const port = process.env.PORT || 4002;
   await app.listen(port);
   logger.log(`Application is running on: http://localhost:${port}`);
   logger.log(`Swagger documentation available at: http://localhost:${port}/docs`);

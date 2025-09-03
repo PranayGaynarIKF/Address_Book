@@ -25,7 +25,7 @@ const EmailServiceModal: React.FC<EmailServiceModalProps> = ({
     serviceType,
     clientId: '',
     clientSecret: '',
-    redirectUri: 'http://localhost:4002/auth/google/callback', // Use the URI configured in Google Cloud Console
+    redirectUri: 'http://localhost:4002/api/mail-accounts/oauth-callback', // Use the URI configured in Google Cloud Console
     scopes: []
   });
   const [isLoading, setIsLoading] = useState(false);
@@ -155,7 +155,7 @@ const EmailServiceModal: React.FC<EmailServiceModalProps> = ({
       serviceType,
       clientId: '',
       clientSecret: '',
-      redirectUri: 'http://localhost:4002/auth/google/callback', // Reset to correct redirect URI
+      redirectUri: 'http://localhost:4002/api/mail-accounts/oauth-callback', // Reset to correct redirect URI
       scopes: []
     });
     setError('');

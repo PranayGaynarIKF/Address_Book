@@ -1,8 +1,9 @@
 import React from 'react';
-import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Layout from './components/Layout';
 import Login from './pages/Login';
+import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Contacts from './pages/Contacts';
 import ContactDetail from './pages/ContactDetail';
@@ -20,6 +21,8 @@ import MergeHistory from './components/MergeHistory';
 import OAuthCallback from './components/OAuthCallback';
 import TagManagement from './components/TagManagement/TagManagement';
 import ContactList from './components/ContactList/ContactList';
+import ProtectedRoute from './components/ProtectedRoute';
+import { AuthProvider } from './contexts/AuthContext';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -32,83 +35,97 @@ const queryClient = new QueryClient({
 
 const router = createBrowserRouter([
   {
+    path: '/',
+    element: <ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>,
+  },
+  {
     path: '/login',
     element: <Login />,
   },
   {
-    path: '/',
-    element: <Layout><Dashboard /></Layout>,
+    path: '/register',
+    element: <Register />,
+  },
+  {
+    path: '/dashboard',
+    element: <ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>,
   },
   {
     path: '/contacts',
-    element: <Layout><Contacts /></Layout>,
+    element: <ProtectedRoute><Layout><Contacts /></Layout></ProtectedRoute>,
   },
   {
     path: '/contacts/:id',
-    element: <Layout><ContactDetail /></Layout>,
+    element: <ProtectedRoute><Layout><ContactDetail /></Layout></ProtectedRoute>,
   },
   {
     path: '/owners',
-    element: <Layout><Owners /></Layout>,
+    element: <ProtectedRoute><Layout><Owners /></Layout></ProtectedRoute>,
   },
   {
     path: '/owners/:id',
-    element: <Layout><OwnerDetail /></Layout>,
+    element: <ProtectedRoute><Layout><OwnerDetail /></Layout></ProtectedRoute>,
   },
   {
     path: '/templates',
-    element: <Layout><Templates /></Layout>,
+    element: <ProtectedRoute><Layout><Templates /></Layout></ProtectedRoute>,
   },
   {
     path: '/templates/:id',
-    element: <Layout><TemplateDetail /></Layout>,
+    element: <ProtectedRoute><Layout><TemplateDetail /></Layout></ProtectedRoute>,
   },
   {
     path: '/messages',
-    element: <Layout><Messages /></Layout>,
+    element: <ProtectedRoute><Layout><Messages /></Layout></ProtectedRoute>,
   },
   {
     path: '/whatsapp',
-    element: <Layout><WhatsApp /></Layout>,
+    element: <ProtectedRoute><Layout><WhatsApp /></Layout></ProtectedRoute>,
   },
   {
     path: '/ingestion',
-    element: <Layout><Ingestion /></Layout>,
+    element: <ProtectedRoute><Layout><Ingestion /></Layout></ProtectedRoute>,
   },
   {
     path: '/email',
-    element: <Layout><Email /></Layout>,
+    element: <ProtectedRoute><Layout><Email /></Layout></ProtectedRoute>,
   },
   {
     path: '/mail-accounts',
-    element: <Layout><MailAccounts /></Layout>,
+    element: <ProtectedRoute><Layout><MailAccounts /></Layout></ProtectedRoute>,
   },
   {
     path: '/data-sources',
-    element: <Layout><DataSourceManager /></Layout>,
+    element: <ProtectedRoute><Layout><DataSourceManager /></Layout></ProtectedRoute>,
   },
   {
     path: '/merge-history',
-    element: <Layout><MergeHistory /></Layout>,
+    element: <ProtectedRoute><Layout><MergeHistory /></Layout></ProtectedRoute>,
   },
   {
     path: '/tag-management',
-    element: <Layout><TagManagement /></Layout>,
+    element: <ProtectedRoute><Layout><TagManagement /></Layout></ProtectedRoute>,
   },
   {
     path: '/contact-list',
-    element: <Layout><ContactList /></Layout>,
+    element: <ProtectedRoute><Layout><ContactList /></Layout></ProtectedRoute>,
   },
   {
     path: '/oauth-callback',
     element: <OAuthCallback />,
+  },
+  {
+    path: '*',
+    element: <Navigate to="/login" replace />,
   },
 ]);
 
 const App: React.FC = () => {
   return (
     <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
+      <AuthProvider>
+        <RouterProvider router={router} />
+      </AuthProvider>
     </QueryClientProvider>
   );
 };

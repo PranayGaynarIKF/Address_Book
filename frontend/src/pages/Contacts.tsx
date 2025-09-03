@@ -102,13 +102,18 @@ const Contacts: React.FC = () => {
   const [tagsLoading, setTagsLoading] = useState(false);
   const [tagsError, setTagsError] = useState<Error | null>(null);
 
-  // Debounce search term
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
+  // Manual search function
+  const handleSearch = () => {
+    setDebouncedSearchTerm(searchTerm);
+    setCurrentPage(1); // Reset to first page when searching
+  };
+
+  // Clear search function
+  const handleClearSearch = () => {
+    setSearchTerm('');
+    setDebouncedSearchTerm('');
+    setCurrentPage(1);
+  };
 
   // Reset page when search term changes
   useEffect(() => {
@@ -572,6 +577,81 @@ const Contacts: React.FC = () => {
                   <Tag className="h-5 w-5" />
                   <span>Manage Tags</span>
                 </button>
+                
+                <button
+                  onClick={async () => {
+                    try {
+                      console.log('🔍 Testing database connection...');
+                      const response = await fetch('http://localhost:4002/database/status');
+                      if (response.ok) {
+                        const data = await response.json();
+                        console.log('✅ Database status:', data);
+                        alert('Database connection is working!');
+                      } else {
+                        console.log('❌ Database status failed:', response.status);
+                        const errorText = await response.text();
+                        console.log('Error response:', errorText);
+                        alert('Database connection failed. Check backend logs.');
+                      }
+                    } catch (error) {
+                      console.error('❌ Database test failed:', error);
+                      alert('Cannot test database. Check if backend is running.');
+                    }
+                  }}
+                  className="btn-secondary flex items-center justify-center space-x-2 px-6 py-3"
+                >
+                  <span>Test Database</span>
+                </button>
+                
+                <button
+                  onClick={async () => {
+                    try {
+                      console.log('🔍 Testing contacts endpoint...');
+                      const response = await fetch('http://localhost:4002/contacts/test');
+                      if (response.ok) {
+                        const data = await response.json();
+                        console.log('✅ Contacts test successful:', data);
+                        alert(`Contacts endpoint working! Found ${data.count} contacts.`);
+                      } else {
+                        console.log('❌ Contacts test failed:', response.status);
+                        const errorText = await response.text();
+                        console.log('Error response:', errorText);
+                        alert('Contacts endpoint failed. Check backend logs.');
+                      }
+                    } catch (error) {
+                      console.error('❌ Contacts test failed:', error);
+                      alert('Cannot test contacts endpoint. Check if backend is running.');
+                    }
+                  }}
+                  className="btn-secondary flex items-center justify-center space-x-2 px-6 py-3"
+                >
+                  <span>Test Contacts</span>
+                </button>
+                
+                <button
+                  onClick={async () => {
+                    try {
+                      console.log('🔍 Testing simple database connection...');
+                      const response = await fetch('http://localhost:4002/contacts/test-simple');
+                      if (response.ok) {
+                        const data = await response.json();
+                        console.log('✅ Simple database test successful:', data);
+                        alert('Simple database connection working!');
+                      } else {
+                        console.log('❌ Simple database test failed:', response.status);
+                        const errorText = await response.text();
+                        console.log('Error response:', errorText);
+                        alert('Simple database test failed. Check backend logs.');
+                      }
+                    } catch (error) {
+                      console.error('❌ Simple database test failed:', error);
+                      alert('Cannot test simple database connection. Check if backend is running.');
+                    }
+                  }}
+                  className="btn-secondary flex items-center justify-center space-x-2 px-6 py-3"
+                >
+                  <span>Test Simple DB</span>
+                </button>
               </div>
             </div>
           </div>
@@ -583,15 +663,33 @@ const Contacts: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Search Contacts
                 </label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search by name, email, or company..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200"
-                  />
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Search by name, email, or company..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200"
+                    />
+                  </div>
+                  <button
+                    onClick={handleSearch}
+                    className="px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-all duration-200 flex items-center gap-2"
+                  >
+                    <Search className="h-4 w-4" />
+                    Search
+                  </button>
+                  {searchTerm && (
+                    <button
+                      onClick={handleClearSearch}
+                      className="px-4 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-all duration-200"
+                    >
+                      Clear
+                    </button>
+                  )}
                 </div>
               </div>
               
@@ -1330,12 +1428,12 @@ const Contacts: React.FC = () => {
               </div>
               <h3 className="text-lg font-medium text-gray-900 mb-2">No contacts found</h3>
               <p className="text-gray-500 mb-6">
-                {searchTerm || selectedFilter !== 'all' 
+                {debouncedSearchTerm || selectedFilter !== 'all' 
                   ? 'Try adjusting your search or filters'
                   : 'Get started by adding your first contact'
                 }
               </p>
-              {!searchTerm && selectedFilter === 'all' && (
+              {!debouncedSearchTerm && selectedFilter === 'all' && (
                 <button
                   onClick={() => setIsModalOpen(true)}
                   className="btn-primary"

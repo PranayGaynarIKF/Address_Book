@@ -1,29 +1,22 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import React, { useState, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { 
   Mail, 
   Users, 
-  Tag, 
-  Send, 
+  Tag,
   Plus, 
   Search, 
-  Filter,
   Eye,
-  EyeOff,
-  Trash2,
   Edit3,
   Copy,
   CheckCircle,
   AlertCircle,
   Clock,
   BarChart3,
-  FileText,
-  ChevronDown,
-  ChevronRight,
   X
 } from 'lucide-react';
 
-interface Tag {
+interface TagData {
   id: string;
   name: string;
   color: string;
@@ -103,7 +96,7 @@ const GmailCampaignManager: React.FC = () => {
   });
 
   // Fetch email templates
-  const { data: templates, isLoading: templatesLoading } = useQuery({
+  const { data: templates } = useQuery({
     queryKey: ['emailTemplates'],
     queryFn: async () => {
       const response = await fetch(`${API_BASE}/templates?type=email`, {
@@ -124,7 +117,6 @@ const GmailCampaignManager: React.FC = () => {
       if (selectedTags.size === 0) return { contacts: [], total: 0 };
       
       const allContacts: Contact[] = [];
-      let totalContacts = 0;
       
       for (const tagId of selectedTags) {
         try {
@@ -134,7 +126,6 @@ const GmailCampaignManager: React.FC = () => {
           if (response.ok) {
             const data = await response.json();
             allContacts.push(...data);
-            totalContacts += data.length;
           }
         } catch (error) {
           console.error(`Error fetching contacts for tag ${tagId}:`, error);
@@ -187,7 +178,7 @@ const GmailCampaignManager: React.FC = () => {
   const filteredTags = useMemo(() => {
     if (!tags) return [];
     if (!searchTerm) return tags;
-    return tags.filter((tag: Tag) => 
+    return tags.filter((tag: TagData) => 
       tag.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       tag.description?.toLowerCase().includes(searchTerm.toLowerCase())
     );
@@ -269,7 +260,6 @@ const GmailCampaignManager: React.FC = () => {
     setEmailContent('');
     setScheduledDate('');
     setScheduledTime('');
-    setEditingCampaign(null);
   };
 
   const getStatusColor = (status: string) => {
@@ -353,7 +343,7 @@ const GmailCampaignManager: React.FC = () => {
                   ))}
                 </div>
               ) : filteredTags.length > 0 ? (
-                filteredTags.map((tag: Tag) => (
+                filteredTags.map((tag: TagData) => (
                   <div
                     key={tag.id}
                     className={`p-3 rounded-lg border cursor-pointer transition-all duration-200 ${
@@ -406,7 +396,7 @@ const GmailCampaignManager: React.FC = () => {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {Array.from(selectedTags).map((tagId: string) => {
-                    const tag = tags?.find((t: Tag) => t.id === tagId);
+                    const tag = tags?.find((t: TagData) => t.id === tagId);
                     if (!tag) return null;
                     return (
                       <span

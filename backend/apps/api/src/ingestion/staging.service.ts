@@ -13,19 +13,31 @@ export class StagingService {
 
     const stagingContacts = [];
     for (const contact of contacts) {
-      const stagingContact = await this.prisma.stagingContact.create({
-        data: {
-          rawName: contact.rawName,
-          rawEmail: contact.rawEmail,
-          rawPhone: contact.rawPhone,
-          rawCompany: contact.rawCompany,
-          relationshipType: contact.relationshipType,
-          dataOwnerName: contact.dataOwnerName,
-          sourceSystem: contact.sourceSystem,
-          sourceRecordId: contact.sourceRecordId,
-        },
-      });
-      stagingContacts.push(stagingContact);
+      // Use raw SQL to bypass Prisma schema mapping issue
+      const result = await this.prisma.$queryRaw`
+        INSERT INTO [app].[StagingContacts] (
+          id, raw_name, raw_email, raw_phone, raw_company, 
+          relationship_type, data_owner_name, source_system, 
+          source_record_id, imported_at
+        )
+        OUTPUT INSERTED.*
+        VALUES (
+          NEWID(), 
+          ${contact.rawName || null}, 
+          ${contact.rawEmail || null}, 
+          ${contact.rawPhone || null}, 
+          ${contact.rawCompany || null},
+          ${contact.relationshipType || null}, 
+          ${contact.dataOwnerName || null}, 
+          ${contact.sourceSystem}, 
+          ${contact.sourceRecordId},
+          GETDATE()
+        )
+      `;
+      
+      if (result && Array.isArray(result) && result.length > 0) {
+        stagingContacts.push(result[0]);
+      }
     }
 
     return stagingContacts;
@@ -34,12 +46,22 @@ export class StagingService {
   async createImportRun(sourceSystem: SourceSystem): Promise<any> {
     this.logger.log(`Creating import run for ${sourceSystem}`);
 
-    return this.prisma.importRun.create({
-      data: {
-        sourceSystem,
-        startedAt: new Date(),
-      },
-    });
+    // Use raw SQL to bypass Prisma schema mapping issue
+    const result = await this.prisma.$queryRaw`
+      INSERT INTO [app].[ImportRuns] (
+        id, source_system, started_at, total, inserted, updated, 
+        duplicates, conflicts, report_json
+      )
+      OUTPUT INSERTED.*
+      VALUES (
+        NEWID(), 
+        ${sourceSystem}, 
+        GETDATE(), 
+        0, 0, 0, 0, 0, NULL
+      )
+    `;
+
+    return result && Array.isArray(result) && result.length > 0 ? result[0] : null;
   }
 
   async updateImportRun(importRunId: string, data: {
@@ -51,35 +73,87 @@ export class StagingService {
     conflicts?: number;
     reportJson?: string;
   }): Promise<void> {
-    await this.prisma.importRun.update({
-      where: { id: importRunId },
-      data,
-    });
+    // Use raw SQL to bypass Prisma schema mapping issue
+    const setParts = [];
+    const values = [];
+
+    if (data.finishedAt !== undefined) {
+      setParts.push('finished_at = @P' + (values.length + 1));
+      values.push(data.finishedAt);
+    }
+    if (data.total !== undefined) {
+      setParts.push('total = @P' + (values.length + 1));
+      values.push(data.total);
+    }
+    if (data.inserted !== undefined) {
+      setParts.push('inserted = @P' + (values.length + 1));
+      values.push(data.inserted);
+    }
+    if (data.updated !== undefined) {
+      setParts.push('updated = @P' + (values.length + 1));
+      values.push(data.updated);
+    }
+    if (data.duplicates !== undefined) {
+      setParts.push('duplicates = @P' + (values.length + 1));
+      values.push(data.duplicates);
+    }
+    if (data.conflicts !== undefined) {
+      setParts.push('conflicts = @P' + (values.length + 1));
+      values.push(data.conflicts);
+    }
+    if (data.reportJson !== undefined) {
+      setParts.push('report_json = @P' + (values.length + 1));
+      values.push(data.reportJson);
+    }
+
+    if (setParts.length > 0) {
+      const query = `
+        UPDATE [app].[ImportRuns] 
+        SET ${setParts.join(', ')} 
+        WHERE id = @P${values.length + 1}
+      `;
+      values.push(importRunId);
+
+      await this.prisma.$executeRawUnsafe(query, ...values);
+    }
   }
 
   async getLatestImportRun(sourceSystem?: SourceSystem): Promise<any> {
-    const where = sourceSystem ? { sourceSystem } : {};
+    // Use raw SQL to bypass Prisma schema mapping issue
+    const whereClause = sourceSystem ? 'WHERE source_system = @P1' : '';
+    const params = sourceSystem ? [sourceSystem] : [];
     
-    return this.prisma.importRun.findFirst({
-      where,
-      orderBy: { startedAt: 'desc' },
-    });
+    const query = `
+      SELECT TOP 1 * FROM [app].[ImportRuns] 
+      ${whereClause}
+      ORDER BY started_at DESC
+    `;
+    
+    const result = await this.prisma.$queryRawUnsafe(query, ...params);
+    return Array.isArray(result) && result.length > 0 ? result[0] : null;
   }
 
   async clearStagingContacts(sourceSystem?: SourceSystem): Promise<void> {
-    const where = sourceSystem ? { sourceSystem } : {};
+    // Use raw SQL to bypass Prisma schema mapping issue
+    const whereClause = sourceSystem ? 'WHERE source_system = @P1' : '';
+    const params = sourceSystem ? [sourceSystem] : [];
     
-    await this.prisma.stagingContact.deleteMany({
-      where,
-    });
+    const query = `DELETE FROM [app].[StagingContacts] ${whereClause}`;
+    await this.prisma.$executeRawUnsafe(query, ...params);
   }
 
   async getStagingContacts(sourceSystem?: SourceSystem): Promise<any[]> {
-    const where = sourceSystem ? { sourceSystem } : {};
+    // Use raw SQL to bypass Prisma schema mapping issue
+    const whereClause = sourceSystem ? 'WHERE source_system = @P1' : '';
+    const params = sourceSystem ? [sourceSystem] : [];
     
-    return this.prisma.stagingContact.findMany({
-      where,
-      orderBy: { importedAt: 'desc' },
-    });
+    const query = `
+      SELECT * FROM [app].[StagingContacts] 
+      ${whereClause}
+      ORDER BY imported_at DESC
+    `;
+    
+    const result = await this.prisma.$queryRawUnsafe(query, ...params);
+    return Array.isArray(result) ? result : [];
   }
 }

@@ -78,6 +78,38 @@ export class MailAccountsController {
     }
   }
 
+  // OAuth callback route - MUST come before @Get(':id') to avoid route conflict
+  @Get('oauth-callback')
+  @ApiOperation({ summary: 'Handle OAuth callback from Google' })
+  @ApiResponse({ status: 200, description: 'OAuth callback handled successfully' })
+  @ApiResponse({ status: 400, description: 'OAuth callback failed' })
+  async handleOAuthCallback(@Query('code') code: string, @Query('state') state?: string) {
+    try {
+      if (!code) {
+        throw new Error('Authorization code not provided');
+      }
+
+      const tokens = await this.mailAccountsService.exchangeCodeForTokens(code);
+      return {
+        success: true,
+        message: 'OAuth authentication successful',
+        data: {
+          accessToken: tokens.access_token,
+          refreshToken: tokens.refresh_token,
+          expiresIn: tokens.expires_in,
+        },
+      };
+    } catch (error) {
+      throw new HttpException(
+        {
+          success: false,
+          message: error.message,
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a mail account by ID' })
   @ApiParam({ name: 'id', description: 'Mail account ID' })
@@ -197,37 +229,6 @@ export class MailAccountsController {
         data: {
           oauthUrl,
           redirectUri: process.env.ZOHO_REDIRECT_URI || 'http://localhost:3000/oauth-callback'
-        },
-      };
-    } catch (error) {
-      throw new HttpException(
-        {
-          success: false,
-          message: error.message,
-        },
-        HttpStatus.BAD_REQUEST,
-      );
-    }
-  }
-
-  @Get('oauth-callback')
-  @ApiOperation({ summary: 'Handle OAuth callback from Google' })
-  @ApiResponse({ status: 200, description: 'OAuth callback handled successfully' })
-  @ApiResponse({ status: 400, description: 'OAuth callback failed' })
-  async handleOAuthCallback(@Query('code') code: string, @Query('state') state?: string) {
-    try {
-      if (!code) {
-        throw new Error('Authorization code not provided');
-      }
-
-      const tokens = await this.mailAccountsService.exchangeCodeForTokens(code);
-      return {
-        success: true,
-        message: 'OAuth authentication successful',
-        data: {
-          accessToken: tokens.access_token,
-          refreshToken: tokens.refresh_token,
-          expiresIn: tokens.expires_in,
         },
       };
     } catch (error) {

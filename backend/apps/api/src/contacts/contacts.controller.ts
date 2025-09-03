@@ -33,8 +33,93 @@ export class ContactsController {
   @ApiQuery({ name: 'company', required: false, description: 'Filter by company name' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
-  findAll(@Query() filters: ContactFilterDto) {
-    return this.contactsService.findAll(filters);
+  async findAll(@Query() filters: ContactFilterDto) {
+    try {
+      console.log('🔍 Contacts findAll called with filters:', filters);
+      const result = await this.contactsService.findAll(filters);
+      console.log('✅ Contacts findAll successful, count:', result.total);
+      return result;
+    } catch (error) {
+      console.error('❌ Contacts findAll error:', error);
+      console.error('❌ Error type:', error.constructor.name);
+      console.error('❌ Error message:', error.message);
+      console.error('❌ Error stack:', error.stack);
+      
+      // Return a more specific error response
+      if (error.code === 'P2002') {
+        throw new Error('Database constraint violation');
+      } else if (error.code === 'P2024') {
+        throw new Error('Database connection timeout');
+      } else if (error.code === 'P2025') {
+        throw new Error('Record not found');
+      } else {
+        throw new Error(`Database error: ${error.message}`);
+      }
+    }
+  }
+
+  @Get('test')
+  @ApiOperation({ summary: 'Test database connection' })
+  @ApiResponse({ status: 200, description: 'Database connection test' })
+  async testConnection() {
+    try {
+      console.log('🔍 Testing database connection...');
+      // Simple test query
+      const count = await this.contactsService.testConnection();
+      console.log('✅ Database connection test successful');
+      return { message: 'Database connection successful', count };
+    } catch (error) {
+      console.error('❌ Database connection test failed:', error);
+      throw error;
+    }
+  }
+
+  @Get('test-simple')
+  @ApiOperation({ summary: 'Simple database connection test' })
+  @ApiResponse({ status: 200, description: 'Simple database test' })
+  async testSimpleConnection() {
+    try {
+      console.log('🔍 Testing simple database connection...');
+      // Test with raw SQL to see if it's a Prisma issue
+      const result = await this.contactsService.testSimpleConnection();
+      console.log('✅ Simple database test successful');
+      return { message: 'Simple database test successful', result };
+    } catch (error) {
+      console.error('❌ Simple database test failed:', error);
+      throw error;
+    }
+  }
+
+  @Get('test-table')
+  @ApiOperation({ summary: 'Test table access' })
+  @ApiResponse({ status: 200, description: 'Table access test' })
+  async testTableAccess() {
+    try {
+      console.log('🔍 Testing table access...');
+      const result = await this.contactsService.testTableAccess();
+      console.log('✅ Table access test successful');
+      return { message: 'Table access test successful', result };
+    } catch (error) {
+      console.error('❌ Table access test failed:', error);
+      throw error;
+    }
+  }
+
+  @Get('health')
+  @ApiOperation({ summary: 'Basic health check' })
+  @ApiResponse({ status: 200, description: 'Health check successful' })
+  async healthCheck() {
+    try {
+      console.log('🔍 Basic health check...');
+      return { 
+        message: 'Contacts controller is working',
+        timestamp: new Date().toISOString(),
+        status: 'healthy'
+      };
+    } catch (error) {
+      console.error('❌ Health check failed:', error);
+      throw error;
+    }
   }
 
   @Get(':id')

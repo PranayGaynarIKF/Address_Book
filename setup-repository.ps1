@@ -51,4 +51,4 @@ Write-Host "2. Add files to git: git add ." -ForegroundColor White
 Write-Host "3. Commit: git commit -m 'Initial commit: Add NestJS backend and React frontend'" -ForegroundColor White
 Write-Host "4. Push: git push -u origin main" -ForegroundColor White
 
-Write-Host "`nRepository setup complete!" -ForegroundColor Green
+`Write-Host "`nRepository setup complete!" -ForegroundColor Green

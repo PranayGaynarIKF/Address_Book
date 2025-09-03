@@ -6,6 +6,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { HealthModule } from './health/health.module';
 import { AuthModule } from './auth/auth.module';
 import { GoogleAuthModule } from './auth/google-auth.module';
+import { UsersModule } from './users/users.module';
 import { ContactsModule } from './contacts/contacts.module';
 import { OwnersModule } from './owners/owners.module';
 import { TemplatesModule } from './templates/templates.module';
@@ -44,6 +45,7 @@ import { DatabaseModule } from './common/prisma/database.module';
     HealthModule,
     AuthModule,
     GoogleAuthModule,
+    UsersModule,
     ContactsModule,
     OwnersModule,
     TemplatesModule,

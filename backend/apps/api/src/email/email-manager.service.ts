@@ -397,8 +397,8 @@ export class EmailManagerService {
       // Use the tags service to get contacts with email addresses
       const contacts = await this.tagsService.getContactsWithEmailByTag(tagId);
       
-      this.logger.log(`Found ${contacts.length} contacts with email addresses for tag: ${tagId}`);
-      return contacts;
+      this.logger.log(`Found ${(contacts as any[]).length} contacts with email addresses for tag: ${tagId}`);
+      return contacts as any[];
     } catch (error) {
       this.logger.error(`Failed to get contacts by tag for email: ${tagId}`, error);
       throw error;
@@ -406,6 +406,7 @@ export class EmailManagerService {
   }
 
   async sendBulkEmailToTag(
+    userId: string,
     tagId: string, 
     message: EmailSendRequest, 
     serviceType: EmailServiceType
@@ -431,12 +432,12 @@ export class EmailManagerService {
           const gmailService = this.getEmailService('GMAIL') as any;
           if (gmailService && typeof gmailService.initializeOAuthClient === 'function') {
             // Get the most recent active Gmail configuration
-            const config = await this.emailDatabaseService.getEmailServiceConfig('current-user-id', 'GMAIL');
+            const config = await this.emailDatabaseService.getEmailServiceConfig(userId, 'GMAIL');
             if (config) {
               gmailService.initializeOAuthClient(config.clientId, config.clientSecret, config.redirectUri);
               
               // Also get and set the OAuth tokens
-              const authToken = await this.emailDatabaseService.getValidEmailAuthToken('current-user-id', 'GMAIL');
+              const authToken = await this.emailDatabaseService.getValidEmailAuthToken(userId, 'GMAIL');
               if (authToken && authToken.accessToken) {
                 // Set the access token on the OAuth client
                 if (gmailService.oauth2Client) {
@@ -539,7 +540,7 @@ export class EmailManagerService {
             const contactsWithEmail = await this.tagsService.getContactsWithEmailByTag(tag.id);
             return {
               ...tag,
-              emailContactCount: contactsWithEmail.length
+              emailContactCount: (contactsWithEmail as any[]).length
             };
           } catch (error) {
             this.logger.error(`Failed to get email contact count for tag: ${tag.id}`, error);

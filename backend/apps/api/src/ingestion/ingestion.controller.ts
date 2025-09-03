@@ -12,7 +12,7 @@ interface GmailIngestionDto {
 @ApiTags('Ingestion')
 @Controller('ingestion')
 @UseGuards(ApiKeyGuard)
-@ApiSecurity('api-key')
+@ApiSecurity('ingestion-api-key')
 export class IngestionController {
   private readonly logger = new Logger(IngestionController.name);
 
@@ -64,7 +64,9 @@ export class IngestionController {
 
   @Post('mobile/run')
   @ApiOperation({ summary: 'Run Mobile contacts ingestion' })
+  @ApiSecurity('ingestion-api-key')
   @ApiResponse({ status: 200, description: 'Mobile ingestion completed successfully' })
+  @ApiResponse({ status: 401, description: 'API key is required' })
   async runMobileIngestion() {
     this.logger.log('Starting Mobile ingestion');
     return this.ingestionService.runIngestion(SourceSystem.MOBILE);

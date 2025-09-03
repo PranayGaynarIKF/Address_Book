@@ -64,7 +64,7 @@ Create a `.env` file in the project root:
 ```bash
 # Application
 NODE_ENV=development
-PORT=4000
+PORT=4002
 
 # Main Database
 DATABASE_URL="sqlserver://localhost:1433;database=db_address_book;integratedSecurity=true;trustServerCertificate=true"
@@ -95,14 +95,14 @@ npm run start:dev
 npm run start:prod
 ```
 
-The API will be available at `http://localhost:4000`
+The API will be available at `http://localhost:4002`
 
 ## 📚 API Documentation
 
 Once the application is running, visit:
-- **Swagger UI**: `http://localhost:4000/docs`
-- **Health Check**: `http://localhost:4000/health`
-- **Database Status**: `http://localhost:4000/database/status`
+- **Swagger UI**: `http://localhost:4002/docs`
+- **Health Check**: `http://localhost:4002/health`
+- **Database Status**: `http://localhost:4002/database/status`
 
 ## 🔌 API Endpoints
 
@@ -206,7 +206,7 @@ apps/api/
 
 | Variable | Description | Required | Default |
 |----------|-------------|----------|---------|
-| `PORT` | Application port | No | 4000 |
+| `PORT` | Application port | No | 4002 |
 | `DATABASE_URL` | Main database connection | Yes | - |
 | `INVOICE_DATABASE_URL` | Invoice database connection | Yes | - |
 | `GOOGLE_CLIENT_ID` | Google OAuth client ID | Yes | - |
@@ -254,7 +254,7 @@ Check application logs for detailed error information:
 npm run start:dev
 
 # Database logs
-curl http://localhost:4000/database/status
+curl http://localhost:4002/database/status
 ```
 
 ## 🤝 Contributing

@@ -16,15 +16,10 @@ export class JwtAuthGuard implements CanActivate {
     
     try {
       const payload = await this.jwtService.verifyAsync(token, {
-        secret: process.env.JWT_SECRET,
+        secret: process.env.JWT_SECRET || 'your-secret-key',
       });
       
-      // Check if user email is in admin emails
-      const adminEmails = process.env.ADMIN_EMAILS?.split(',') || [];
-      if (!adminEmails.includes(payload.email)) {
-        throw new UnauthorizedException('User is not an admin');
-      }
-      
+      // Set user information in request
       request['user'] = payload;
       return true;
     } catch {

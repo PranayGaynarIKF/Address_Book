@@ -2,6 +2,7 @@ import axios from 'axios';
 import {
   LoginDto,
   LoginResponseDto,
+  UserResponseDto,
   CreateContactDto,
   ContactResponseDto,
   ContactsApiResponse,
@@ -31,7 +32,7 @@ const api = axios.create({
 
 // Request interceptor to add auth token
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('accessToken');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -42,7 +43,13 @@ api.interceptors.request.use((config) => {
 
 // Auth API
 export const authAPI = {
-  login: (data: LoginDto) => api.post<LoginResponseDto>('/auth/login', data),
+  login: (data: LoginDto) => {
+    console.log('🌐 Making login request to:', `${API_BASE_URL}/auth/login`);
+    console.log('📤 Request data:', { email: data.email, passwordLength: data.password.length });
+    return api.post<LoginResponseDto>('/auth/login', data);
+  },
+  register: (data: { email: string; password: string; firstName: string; lastName: string }) => 
+    api.post<UserResponseDto>('/users/register', data),
   googleLogin: () => window.location.href = `${API_BASE_URL}/auth/google/login`,
   googleStatus: () => api.get('/auth/google/status'),
 };

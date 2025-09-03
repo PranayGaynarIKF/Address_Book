@@ -5,6 +5,7 @@ generator client {
 datasource db {
   provider = "sqlserver"
   url      = env("DATABASE_URL")
+  schemas  = ["app"]
 }
 
 // Note: SQL Server doesn't support enums, so we use strings with constraints
@@ -45,7 +46,7 @@ model Contact {
   @@index([name, mobileE164])
   @@index([companyName])
   @@index([sourceSystem, sourceRecordId], name: "idx_source_lookup")
-  @@map("app.Contacts")
+  @@map("Contacts")
 }
 
 model ContactOwner {
@@ -248,8 +249,9 @@ model EmailServiceConfig {
   updatedAt    DateTime @updatedAt @map("updated_at")
   
   // Relationships
-  authTokens EmailAuthToken[]
+  user User @relation(fields: [userId], references: [id], onDelete: NoAction)
   
+  @@unique([userId, serviceType])
   @@index([userId])
   @@index([serviceType])
   @@index([isActive])
@@ -269,12 +271,93 @@ model EmailAuthToken {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
   
-  // Relationships
-  config EmailServiceConfig @relation(fields: [userId, serviceType], references: [userId, serviceType])
+    // Relationships
+  user User @relation(fields: [userId], references: [id], onDelete: NoAction)
   
   @@index([userId])
-  @@index([serviceType])
   @@index([isValid])
   @@index([expiresAt])
   @@map("app.EmailAuthTokens")
+}
+
+// =============================================================================
+// USER MANAGEMENT MODELS
+// =============================================================================
+
+model User {
+  id        String   @id @default(cuid()) @map("id")
+  email     String   @unique @map("email")
+  passwordHash String @map("passwordHash")
+  firstName String   @map("firstName")
+  lastName  String   @map("lastName")
+  isActive  Boolean  @default(true) @map("isActive")
+  emailVerified Boolean @default(false) @map("emailVerified")
+  lastLoginAt DateTime? @map("lastLoginAt")
+  createdAt DateTime @default(now()) @map("createdAt")
+  updatedAt DateTime @updatedAt @map("updatedAt")
+  
+  // Relationships
+  emailServiceConfigs EmailServiceConfig[]
+  emailAuthTokens EmailAuthToken[]
+  passwordResetTokens PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
+  userSessions UserSession[]
+  
+  @@index([email])
+  @@index([isActive])
+  @@map("app.User")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid()) @map("id")
+  userId    String   @map("userId")
+  token     String   @unique @map("token")
+  expiresAt DateTime @map("expiresAt")
+  isUsed    Boolean  @default(false) @map("isUsed")
+  createdAt DateTime @default(now()) @map("createdAt")
+  
+  // Relationships
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+  @@map("app.PasswordResetTokens")
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(cuid()) @map("id")
+  userId    String   @map("userId")
+  token     String   @unique @map("token")
+  expiresAt DateTime @map("expiresAt")
+  isUsed    Boolean  @default(false) @map("isUsed")
+  createdAt DateTime @default(now()) @map("createdAt")
+  
+  // Relationships
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+  @@map("app.EmailVerificationTokens")
+}
+
+model UserSession {
+  id           String   @id @default(cuid()) @map("id")
+  userId       String   @map("userId")
+  refreshToken String   @unique @map("refreshToken")
+  deviceInfo   String?  @map("deviceInfo")
+  ipAddress    String?  @map("ipAddress")
+  expiresAt    DateTime @map("expiresAt")
+  isActive     Boolean  @default(true) @map("isActive")
+  createdAt    DateTime @default(now()) @map("createdAt")
+  updatedAt    DateTime @updatedAt @map("updatedAt")
+  
+  // Relationships
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([refreshToken])
+  @@index([expiresAt])
+  @@map("app.UserSessions")
 }

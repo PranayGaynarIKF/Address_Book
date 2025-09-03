@@ -267,9 +267,8 @@ export class IngestionService {
         this.logger.warn(`⚠️ Report data is large (${reportSize} chars), will truncate for database storage`);
       }
 
-      // Update staging contacts with cleaned data
-      this.logger.log('📝 Updating staging contacts with cleaned data...');
-      await this.cleanerService.updateStagingContacts(deduplicatedContacts);
+      // Note: Staging contacts already updated in cleanAndNormalize() method
+      this.logger.log('📝 Staging contacts already updated with cleaned data');
 
       // Write to final contacts table
       this.logger.log('💾 Writing contacts to final table...');

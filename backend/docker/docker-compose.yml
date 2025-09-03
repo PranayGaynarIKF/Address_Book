@@ -22,7 +22,7 @@ services:
     container_name: contacts-backend
     environment:
       - NODE_ENV=development
-      - PORT=4000
+      - PORT=4002
       - DATABASE_URL=sqlserver://sa:YourStrong@Passw0rd@sqlserver:1433;database=ContactsDB;encrypt=true;trustServerCertificate=true
       - JWT_SECRET=dev_jwt_secret_change_in_production
       - ADMIN_EMAILS=admin@example.com
@@ -30,7 +30,7 @@ services:
       - DEFAULT_COUNTRY_CODE=IN
       - TRUSTED_SOURCES=ZOHO,INVOICE
     ports:
-      - "4000:4000"
+      - "4002:4002"
     depends_on:
       - sqlserver
     volumes:

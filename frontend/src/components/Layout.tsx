@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { 
   Home, 
   Users, 
@@ -30,6 +31,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const navigation = [
     { name: 'Dashboard', href: '/', icon: Home },
@@ -47,9 +49,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Tag Management', href: '/tag-management', icon: Tag },
   ];
 
+  const { logout } = useAuth();
+
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    navigate('/login');
+    logout();
   };
 
   const isActive = (href: string) => {
@@ -137,12 +140,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           {/* User section */}
           <div className="p-4 border-t border-gray-200/50">
             <div className="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-50 transition-colors duration-200 cursor-pointer">
-              <div className="w-10 h-10 bg-gradient-to-br from-gray-400 to-gray-600 rounded-full flex items-center justify-center">
-                <span className="text-white font-medium text-sm">U</span>
+              <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full flex items-center justify-center">
+                <span className="text-white font-medium text-sm">
+                  {user?.email?.charAt(0).toUpperCase() || 'U'}
+                </span>
               </div>
               <div className="flex-1">
-                <p className="text-sm font-medium text-gray-900">Admin User</p>
-                <p className="text-xs text-gray-500">admin@example.com</p>
+                <p className="text-sm font-medium text-gray-900">
+                  {user?.email ? `${user.email.split('@')[0]}` : 'User'}
+                </p>
+                <p className="text-xs text-gray-500">{user?.email || 'user@example.com'}</p>
               </div>
               <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors duration-200">
                 <Settings className="h-4 w-4 text-gray-500" />
@@ -185,7 +192,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
               </button>
               <div className="w-8 h-8 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full flex items-center justify-center cursor-pointer hover:scale-110 transition-transform duration-200">
-                <span className="text-white font-medium text-sm">A</span>
+                <span className="text-white font-medium text-sm">
+                  {user?.email?.charAt(0).toUpperCase() || 'U'}
+                </span>
               </div>
             </div>
           </div>

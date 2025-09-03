@@ -4,13 +4,22 @@ export interface LoginDto {
   password: string;
 }
 
+export interface UserResponseDto {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  isActive: boolean;
+  emailVerified: boolean;
+  lastLoginAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface LoginResponseDto {
-  token: string;
-  user: {
-    id: string;
-    email: string;
-    role: string;
-  };
+  access_token: string;
+  token_type: string;
+  user: UserResponseDto;
 }
 
 export interface CreateContactDto {

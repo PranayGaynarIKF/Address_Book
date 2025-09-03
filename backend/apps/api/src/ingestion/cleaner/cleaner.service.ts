@@ -18,18 +18,26 @@ export class CleanerService {
   async cleanAndNormalize(stagingContacts: any[]): Promise<any[]> {
     this.logger.log(`Cleaning and normalizing ${stagingContacts.length} contacts`);
 
-    return stagingContacts.map(contact => {
+    const cleanedContacts = stagingContacts.map(contact => {
+      // Map database field names to expected field names
+      const rawName = contact.raw_name || contact.rawName;
+      const rawEmail = contact.raw_email || contact.rawEmail;
+      const rawPhone = contact.raw_phone || contact.rawPhone;
+      const rawCompany = contact.raw_company || contact.rawCompany;
+      const relationshipType = contact.relationship_type || contact.relationshipType;
+      const sourceSystem = contact.source_system || contact.sourceSystem;
+
       // Normalize name
-      const normName = contact.rawName?.trim() || 'Unknown';
+      const normName = rawName?.trim() || 'Unknown';
 
       // Normalize email
-      const normEmail = contact.rawEmail?.trim() || null;
+      const normEmail = rawEmail?.trim() || null;
 
       // Normalize phone number
-      const normPhoneE164 = contact.rawPhone ? normalizePhoneNumber(contact.rawPhone) : null;
+      const normPhoneE164 = rawPhone ? normalizePhoneNumber(rawPhone) : null;
 
       // Normalize company
-      let normCompany = contact.rawCompany ? normalizeCompanyName(contact.rawCompany) : 'Unknown';
+      let normCompany = rawCompany ? normalizeCompanyName(rawCompany) : 'Unknown';
       
       // If no company provided but email exists, extract from email domain
       if (normCompany === 'Unknown' && normEmail) {
@@ -42,8 +50,8 @@ export class CleanerService {
         email: normEmail,
         mobileE164: normPhoneE164,
         companyName: normCompany,
-        relationshipType: contact.relationshipType,
-        sourceSystem: contact.sourceSystem,
+        relationshipType: relationshipType,
+        sourceSystem: sourceSystem,
       });
 
       return {
@@ -55,6 +63,12 @@ export class CleanerService {
         qualityScore,
       };
     });
+
+    // CRITICAL FIX: Update the database with normalized data
+    this.logger.log('Updating staging contacts with normalized data in database');
+    await this.updateStagingContacts(cleanedContacts);
+
+    return cleanedContacts;
   }
 
   async handleDeduplication(cleanedContacts: any[]): Promise<{
@@ -79,25 +93,24 @@ export class CleanerService {
     for (const contact of cleanedContacts) {
       // Check for existing contact with EXACT name + mobileE164 match
       if (contact.normPhoneE164) {
-        const existing = await this.prisma.contact.findFirst({
-          where: {
-            name: contact.normName,
-            mobileE164: contact.normPhoneE164,
-          },
-        });
+        const existing = await this.prisma.$queryRaw`
+          SELECT TOP 1 * FROM [app].[Contacts] 
+          WHERE name = ${contact.normName} 
+          AND mobileno = ${contact.normPhoneE164}
+        `;
 
-        if (existing) {
+        if (existing && Array.isArray(existing) && existing.length > 0) {
           // Only merge if BOTH name AND phone match exactly
           duplicates++;
           
           // Generate new name with suffix
-          const newName = findDuplicateSuffix(contact.normName, [existing.name]);
+          const newName = findDuplicateSuffix(contact.normName, [existing[0].name]);
           
           // Track merge history
           await this.mergeHistoryService.createMergeHistory({
             mergeType: 'DEDUPLICATION',
-            primaryContactId: existing.id,
-            primaryContactName: existing.name,
+            primaryContactId: existing[0].id,
+            primaryContactName: existing[0].name,
             mergedContactId: contact.id,
             mergedContactName: contact.normName,
             sourceSystem: contact.sourceSystem,
@@ -110,9 +123,9 @@ export class CleanerService {
               sourceSystem: contact.sourceSystem,
               qualityScore: contact.qualityScore,
             },
-            beforeQualityScore: existing.dataQualityScore,
-            afterQualityScore: existing.dataQualityScore, // Keep existing score
-            involvedSourceSystems: [existing.sourceSystem, contact.sourceSystem],
+            beforeQualityScore: existing[0].data_quality_score,
+            afterQualityScore: existing[0].data_quality_score, // Keep existing score
+            involvedSourceSystems: [existing[0].source_system, contact.sourceSystem],
           });
           
           report.push({
@@ -127,7 +140,7 @@ export class CleanerService {
           processedContacts.push({
             ...contact,
             normName: newName,
-            duplicateHint: `Duplicate of ${existing.name}`,
+            duplicateHint: `Duplicate of ${existing[0].name}`,
           });
         } else {
           // Different name with same phone = CREATE NEW CONTACT
@@ -140,22 +153,21 @@ export class CleanerService {
         }
       } else {
         // No phone number, check for name conflicts
-        const existing = await this.prisma.contact.findFirst({
-          where: {
-            name: contact.normName,
-          },
-        });
+        const existing = await this.prisma.$queryRaw`
+          SELECT TOP 1 * FROM [app].[Contacts] 
+          WHERE name = ${contact.normName}
+        `;
 
-        if (existing) {
+        if (existing && Array.isArray(existing) && existing.length > 0) {
           conflicts++;
           
-          const newName = findDuplicateSuffix(contact.normName, [existing.name]);
+          const newName = findDuplicateSuffix(contact.normName, [existing[0].name]);
           
           // Track merge history for name conflicts
           await this.mergeHistoryService.createMergeHistory({
             mergeType: 'DEDUPLICATION',
-            primaryContactId: existing.id,
-            primaryContactName: existing.name,
+            primaryContactId: existing[0].id,
+            primaryContactName: existing[0].name,
             mergedContactId: contact.id,
             mergedContactName: contact.normName,
             sourceSystem: contact.sourceSystem,
@@ -168,9 +180,9 @@ export class CleanerService {
               sourceSystem: contact.sourceSystem,
               qualityScore: contact.qualityScore,
             },
-            beforeQualityScore: existing.dataQualityScore,
-            afterQualityScore: existing.dataQualityScore, // Keep existing score
-            involvedSourceSystems: [existing.sourceSystem, contact.sourceSystem],
+            beforeQualityScore: existing[0].data_quality_score,
+            afterQualityScore: existing[0].data_quality_score, // Keep existing score
+            involvedSourceSystems: [existing[0].source_system, contact.sourceSystem],
           });
           
           report.push({
@@ -185,7 +197,7 @@ export class CleanerService {
           processedContacts.push({
             ...contact,
             normName: newName,
-            duplicateHint: `Name conflict with ${existing.name}`,
+            duplicateHint: `Name conflict with ${existing[0].name}`,
           });
         } else {
           processedContacts.push(contact);
@@ -209,20 +221,26 @@ export class CleanerService {
   }
 
   async updateStagingContacts(stagingContacts: any[]): Promise<void> {
-    this.logger.log('Updating staging contacts with cleaned data');
+    this.logger.log(`Updating ${stagingContacts.length} staging contacts with cleaned data`);
 
     for (const contact of stagingContacts) {
-      await this.prisma.stagingContact.update({
-        where: { id: contact.id },
-        data: {
-          normName: contact.normName,
-          normEmail: contact.normEmail,
-          normPhoneE164: contact.normPhoneE164,
-          normCompany: contact.normCompany,
-          qualityScore: contact.qualityScore,
-          duplicateHint: contact.duplicateHint,
-        },
-      });
+      try {
+        await this.prisma.$executeRaw`
+          UPDATE [app].[StagingContacts] 
+          SET 
+            norm_name = ${contact.normName},
+            norm_email = ${contact.normEmail},
+            norm_phone_e164 = ${contact.normPhoneE164},
+            norm_company = ${contact.normCompany},
+            quality_score = ${contact.qualityScore},
+            duplicate_hint = ${contact.duplicateHint || null}
+          WHERE id = ${contact.id}
+        `;
+      } catch (error) {
+        this.logger.error(`Failed to update staging contact ${contact.id}:`, error);
+      }
     }
+    
+    this.logger.log('✅ Staging contacts updated successfully');
   }
 }

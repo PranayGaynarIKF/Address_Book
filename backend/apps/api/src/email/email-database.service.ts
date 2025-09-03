@@ -43,8 +43,8 @@ export class EmailDatabaseService {
     try {
       // Test if we can access the EmailServiceConfigs table
       const result = await this.prisma.$queryRaw`
-        SELECT TOP 1 [id], [userId], [serviceType], [clientId], [clientSecret], [redirectUri], [scopes], [isActive], [createdAt], [updatedAt]
-        FROM [db_address_book].[app].[EmailServiceConfigs]
+        SELECT TOP 1 [id], [user_id], [service_type], [client_id], [client_secret], [redirect_uri], [scopes], [is_active], [created_at], [updated_at]
+        FROM [app].[EmailServiceConfigs]
       `;
       
       this.logger.log('Database test successful, table accessible');
@@ -79,31 +79,34 @@ export class EmailDatabaseService {
       this.logger.log(`Creating email service config for user ${config.userId}, service ${config.serviceType}, account: ${config.accountName || 'default'}`);
       this.logger.log(`Config data:`, JSON.stringify(config, null, 2));
       
-      // Use Prisma's parameterized query instead of raw SQL with placeholders
+      // Generate a unique ID for the config
+      const configId = require('crypto').randomUUID();
+      
+      // Use correct snake_case column names that match the database schema
       if (config.accountName) {
-        // Insert with accountName
+        // Insert with accountName (if column exists)
         await this.prisma.$executeRaw`
-          INSERT INTO [db_address_book].[app].[EmailServiceConfigs] 
-          ([userId], [serviceType], [clientId], [clientSecret], [redirectUri], [scopes], [isActive], [accountName], [createdAt], [updatedAt])
-          VALUES (${config.userId}, ${config.serviceType}, ${config.clientId}, ${config.clientSecret}, ${config.redirectUri}, ${JSON.stringify(config.scopes)}, ${config.isActive}, ${config.accountName}, GETDATE(), GETDATE())
+          INSERT INTO [app].[EmailServiceConfigs] 
+          ([id], [user_id], [service_type], [client_id], [client_secret], [redirect_uri], [scopes], [is_active], [created_at], [updated_at])
+          VALUES (${configId}, ${config.userId}, ${config.serviceType}, ${config.clientId}, ${config.clientSecret}, ${config.redirectUri}, ${JSON.stringify(config.scopes)}, ${config.isActive}, GETDATE(), GETDATE())
         `;
       } else {
-        // Insert without accountName (fallback for existing schema)
+        // Insert without accountName
         await this.prisma.$executeRaw`
-          INSERT INTO [db_address_book].[app].[EmailServiceConfigs] 
-          ([userId], [serviceType], [clientId], [clientSecret], [redirectUri], [scopes], [isActive], [createdAt], [updatedAt])
-          VALUES (${config.userId}, ${config.serviceType}, ${config.clientId}, ${config.clientSecret}, ${config.redirectUri}, ${JSON.stringify(config.scopes)}, ${config.isActive}, GETDATE(), GETDATE())
+          INSERT INTO [app].[EmailServiceConfigs] 
+          ([id], [user_id], [service_type], [client_id], [client_secret], [redirect_uri], [scopes], [is_active], [created_at], [updated_at])
+          VALUES (${configId}, ${config.userId}, ${config.serviceType}, ${config.clientId}, ${config.clientSecret}, ${config.redirectUri}, ${JSON.stringify(config.scopes)}, ${config.isActive}, GETDATE(), GETDATE())
         `;
       }
       
       this.logger.log(`Insert completed successfully`);
       
-      // Then, get the inserted configuration
+      // Then, get the inserted configuration using correct column names
       const result = await this.prisma.$queryRaw`
-        SELECT TOP 1 [id], [userId], [serviceType], [clientId], [clientSecret], [redirectUri], [scopes], [isActive], [createdAt], [updatedAt]
-        FROM [db_address_book].[app].[EmailServiceConfigs]
-        WHERE [userId] = ${config.userId} AND [serviceType] = ${config.serviceType}
-        ORDER BY [createdAt] DESC
+        SELECT TOP 1 [id], [user_id], [service_type], [client_id], [client_secret], [redirect_uri], [scopes], [is_active], [created_at], [updated_at]
+        FROM [app].[EmailServiceConfigs]
+        WHERE [user_id] = ${config.userId} AND [service_type] = ${config.serviceType}
+        ORDER BY [created_at] DESC
       `;
 
       this.logger.log(`Query result:`, JSON.stringify(result, null, 2));
@@ -112,10 +115,16 @@ export class EmailDatabaseService {
       this.logger.log(`Successfully created email service config with ID: ${newConfig.id}`);
 
       return {
-        ...newConfig,
+        id: newConfig.id,
+        userId: newConfig.user_id,
+        serviceType: newConfig.service_type,
+        clientId: newConfig.client_id,
+        clientSecret: newConfig.client_secret,
+        redirectUri: newConfig.redirect_uri,
         scopes: JSON.parse(newConfig.scopes),
-        createdAt: newConfig.createdAt,
-        updatedAt: newConfig.updatedAt
+        isActive: newConfig.is_active,
+        createdAt: newConfig.created_at,
+        updatedAt: newConfig.updated_at
       };
     } catch (error) {
       this.logger.error('Failed to create email service config:', error);
@@ -137,10 +146,10 @@ export class EmailDatabaseService {
       
       // First, let's see what's in the database for this user and service
       const allConfigs = await this.prisma.$queryRaw`
-        SELECT [id], [userId], [serviceType], [clientId], [clientSecret], [redirectUri], [scopes], [isActive], [createdAt], [updatedAt]
-        FROM [db_address_book].[app].[EmailServiceConfigs]
-        WHERE [userId] = ${userId} AND [serviceType] = ${serviceType}
-        ORDER BY [createdAt] DESC
+        SELECT [id], [user_id], [service_type], [client_id], [client_secret], [redirect_uri], [scopes], [is_active], [created_at], [updated_at]
+        FROM [app].[EmailServiceConfigs]
+        WHERE [user_id] = ${userId} AND [service_type] = ${serviceType}
+        ORDER BY [created_at] DESC
       `;
       
       this.logger.log(`All configs found:`, JSON.stringify(allConfigs, null, 2));
@@ -153,10 +162,10 @@ export class EmailDatabaseService {
       // Get the most recent active config
       const configs = Array.isArray(allConfigs) ? allConfigs : [allConfigs];
       const activeConfig = configs.find(config => 
-        config.isActive === true || 
-        config.isActive === 1 || 
-        config.isActive === 'true' ||
-        config.isActive === '1'
+        config.is_active === true || 
+        config.is_active === 1 || 
+        config.is_active === 'true' ||
+        config.is_active === '1'
       );
       
       if (!activeConfig) {
@@ -167,10 +176,16 @@ export class EmailDatabaseService {
       this.logger.log(`Found active config:`, JSON.stringify(activeConfig, null, 2));
 
       return {
-        ...activeConfig,
+        id: activeConfig.id,
+        userId: activeConfig.user_id,
+        serviceType: activeConfig.service_type,
+        clientId: activeConfig.client_id,
+        clientSecret: activeConfig.client_secret,
+        redirectUri: activeConfig.redirect_uri,
         scopes: JSON.parse(activeConfig.scopes),
-        createdAt: activeConfig.createdAt,
-        updatedAt: activeConfig.updatedAt
+        isActive: activeConfig.is_active,
+        createdAt: activeConfig.created_at,
+        updatedAt: activeConfig.updated_at
       };
     } catch (error) {
       this.logger.error('Failed to get email service config:', error);
@@ -186,15 +201,27 @@ export class EmailDatabaseService {
         updateData.scopes = JSON.stringify(updates.scopes);
       }
 
-      // Build dynamic UPDATE query
+      // Build dynamic UPDATE query with correct column names
+      const columnMapping = {
+        userId: 'user_id',
+        serviceType: 'service_type',
+        clientId: 'client_id',
+        clientSecret: 'client_secret',
+        redirectUri: 'redirect_uri',
+        isActive: 'is_active'
+      };
+
       const setClauses = Object.keys(updateData)
         .filter(key => key !== 'id')
-        .map(key => `[${key}] = ${typeof updateData[key] === 'string' ? `'${updateData[key]}'` : updateData[key]}`)
+        .map(key => {
+          const dbColumn = columnMapping[key] || key;
+          return `[${dbColumn}] = ${typeof updateData[key] === 'string' ? `'${updateData[key]}'` : updateData[key]}`;
+        })
         .join(', ');
 
       const updateQuery = `
-        UPDATE [db_address_book].[app].[EmailServiceConfigs]
-        SET ${setClauses}, [updatedAt] = GETDATE()
+        UPDATE [app].[EmailServiceConfigs]
+        SET ${setClauses}, [updated_at] = GETDATE()
         WHERE [id] = '${id}'
       `;
 
@@ -202,18 +229,24 @@ export class EmailDatabaseService {
       
       // Get the updated config
       const result = await this.prisma.$queryRaw`
-        SELECT [id], [userId], [serviceType], [clientId], [clientSecret], [redirectUri], [scopes], [isActive], [createdAt], [updatedAt]
-        FROM [db_address_book].[app].[EmailServiceConfigs]
+        SELECT [id], [user_id], [service_type], [client_id], [client_secret], [redirect_uri], [scopes], [is_active], [created_at], [updated_at]
+        FROM [app].[EmailServiceConfigs]
         WHERE [id] = ${id}
       `;
 
       const updatedConfig = Array.isArray(result) ? result[0] : result;
 
       return {
-        ...updatedConfig,
+        id: updatedConfig.id,
+        userId: updatedConfig.user_id,
+        serviceType: updatedConfig.service_type,
+        clientId: updatedConfig.client_id,
+        clientSecret: updatedConfig.client_secret,
+        redirectUri: updatedConfig.redirect_uri,
         scopes: JSON.parse(updatedConfig.scopes),
-        createdAt: updatedConfig.createdAt,
-        updatedAt: updatedConfig.updatedAt
+        isActive: updatedConfig.is_active,
+        createdAt: updatedConfig.created_at,
+        updatedAt: updatedConfig.updated_at
       };
     } catch (error) {
       this.logger.error('Failed to update email service config:', error);
@@ -224,8 +257,8 @@ export class EmailDatabaseService {
   async deactivateEmailServiceConfig(id: string): Promise<void> {
     try {
       await this.prisma.$executeRaw`
-        UPDATE [db_address_book].[app].[EmailServiceConfigs]
-        SET [isActive] = 0, [updatedAt] = GETDATE()
+        UPDATE [app].[EmailServiceConfigs]
+        SET [is_active] = 0, [updated_at] = GETDATE()
         WHERE [id] = ${id}
       `;
     } catch (error) {
@@ -237,32 +270,44 @@ export class EmailDatabaseService {
   // Email Authentication Token Management
   async saveEmailAuthToken(token: Omit<EmailAuthToken, 'id' | 'createdAt' | 'updatedAt'>): Promise<EmailAuthToken> {
     try {
+      // Generate a unique ID for the token
+      const tokenId = require('crypto').randomUUID();
+      
       // Invalidate existing tokens for this user and service
       await this.prisma.$executeRaw`
-        UPDATE [db_address_book].[app].[EmailAuthTokens]
-        SET [isValid] = 0, [updatedAt] = GETDATE()
-        WHERE [userId] = ${token.userId} AND [serviceType] = ${token.serviceType}
+        UPDATE [app].[EmailAuthTokens]
+        SET [is_valid] = 0, [updated_at] = GETDATE()
+        WHERE [user_id] = ${token.userId} AND [service_type] = ${token.serviceType}
       `;
 
       // Create new token
+      await this.prisma.$executeRaw`
+        INSERT INTO [app].[EmailAuthTokens]
+        ([id], [user_id], [service_type], [access_token], [refresh_token], [expires_at], [scope], [email], [is_valid], [created_at], [updated_at])
+        VALUES (${tokenId}, ${token.userId}, ${token.serviceType}, ${token.accessToken}, ${token.refreshToken}, ${token.expiresAt}, ${JSON.stringify(token.scope)}, ${token.email}, 1, GETDATE(), GETDATE())
+      `;
+      
+      // Get the created token
       const result = await this.prisma.$queryRaw`
-        INSERT INTO [db_address_book].[app].[EmailAuthTokens]
-        ([userId], [serviceType], [accessToken], [refreshToken], [expiresAt], [scope], [email], [isValid], [createdAt], [updatedAt])
-        VALUES (${token.userId}, ${token.serviceType}, ${token.accessToken}, ${token.refreshToken}, ${token.expiresAt}, ${JSON.stringify(token.scope)}, ${token.email}, 1, GETDATE(), GETDATE());
-        
-        SELECT SCOPE_IDENTITY() as id, ${token.userId} as userId, ${token.serviceType} as serviceType,
-               ${token.accessToken} as accessToken, ${token.refreshToken} as refreshToken,
-               ${token.expiresAt} as expiresAt, ${JSON.stringify(token.scope)} as scope,
-               ${token.email} as email, 1 as isValid, GETDATE() as createdAt, GETDATE() as updatedAt;
+        SELECT [id], [user_id], [service_type], [access_token], [refresh_token], [expires_at], [scope], [email], [is_valid], [created_at], [updated_at]
+        FROM [app].[EmailAuthTokens]
+        WHERE [id] = ${tokenId}
       `;
 
-      const newToken = Array.isArray(result) ? result[1] : result;
+      const newToken = Array.isArray(result) ? result[0] : result;
 
       return {
-        ...newToken,
+        id: newToken.id,
+        userId: newToken.user_id,
+        serviceType: newToken.service_type,
+        accessToken: newToken.access_token,
+        refreshToken: newToken.refresh_token,
+        expiresAt: newToken.expires_at,
         scope: JSON.parse(newToken.scope),
-        createdAt: newToken.createdAt,
-        updatedAt: newToken.updatedAt
+        email: newToken.email,
+        isValid: newToken.is_valid,
+        createdAt: newToken.created_at,
+        updatedAt: newToken.updated_at
       };
     } catch (error) {
       this.logger.error('Failed to save email auth token:', error);
@@ -273,10 +318,10 @@ export class EmailDatabaseService {
   async getValidEmailAuthToken(userId: string, serviceType: EmailServiceType): Promise<EmailAuthToken | null> {
     try {
       const result = await this.prisma.$queryRaw`
-        SELECT [id], [userId], [serviceType], [accessToken], [refreshToken], [expiresAt], [scope], [email], [isValid], [createdAt], [updatedAt]
-        FROM [db_address_book].[app].[EmailAuthTokens]
-        WHERE [userId] = ${userId} AND [serviceType] = ${serviceType} AND [isValid] = 1 AND [expiresAt] > GETDATE()
-        ORDER BY [createdAt] DESC
+        SELECT [id], [user_id], [service_type], [access_token], [refresh_token], [expires_at], [scope], [email], [is_valid], [created_at], [updated_at]
+        FROM [app].[EmailAuthTokens]
+        WHERE [user_id] = ${userId} AND [service_type] = ${serviceType} AND [is_valid] = 1 AND [expires_at] > GETDATE()
+        ORDER BY [created_at] DESC
       `;
 
       if (!result || (Array.isArray(result) && result.length === 0)) return null;
@@ -284,10 +329,17 @@ export class EmailDatabaseService {
       const token = Array.isArray(result) ? result[0] : result;
 
       return {
-        ...token,
+        id: token.id,
+        userId: token.user_id,
+        serviceType: token.service_type,
+        accessToken: token.access_token,
+        refreshToken: token.refresh_token,
+        expiresAt: token.expires_at,
         scope: JSON.parse(token.scope),
-        createdAt: token.createdAt,
-        updatedAt: token.updatedAt
+        email: token.email,
+        isValid: token.is_valid,
+        createdAt: token.created_at,
+        updatedAt: token.updated_at
       };
     } catch (error) {
       this.logger.error('Failed to get valid email auth token:', error);
