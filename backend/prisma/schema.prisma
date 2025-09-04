@@ -1,5 +1,6 @@
 generator client {
   provider = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
 }
 
 datasource db {
@@ -19,6 +20,7 @@ model Owner {
   links     ContactOwner[]
   messages  OutboundMessage[]
 
+  @@schema("app")
   @@map("app.Owners")
 }
 
@@ -46,6 +48,7 @@ model Contact {
   @@index([name, mobileE164])
   @@index([companyName])
   @@index([sourceSystem, sourceRecordId], name: "idx_source_lookup")
+  @@schema("app")
   @@map("Contacts")
 }
 
@@ -60,6 +63,7 @@ model ContactOwner {
 
   @@unique([contactId, ownerId])
   @@index([ownerId])
+  @@schema("app")
   @@map("app.ContactOwners")
 }
 
@@ -82,6 +86,7 @@ model StagingContact {
   qualityScore  Int     @default(0) @map("quality_score")
   duplicateHint String? @map("duplicate_hint")
 
+  @@schema("app")
   @@map("app.StagingContacts")
 }
 
@@ -97,6 +102,7 @@ model ImportRun {
   conflicts    Int       @default(0) @map("conflicts")
   reportJson   String?   @map("report_json")
 
+  @@schema("app")
   @@map("app.ImportRuns")
 }
 
@@ -131,6 +137,7 @@ model MergeHistory {
   @@index([mergeType])
   @@index([sourceSystem])
   @@index([mergedAt])
+  @@schema("app")
   @@map("app.MergeHistory")
 }
 
@@ -144,6 +151,7 @@ model MessageTemplate {
   updatedAt DateTime @updatedAt @map("updated_at")
   messages  OutboundMessage[]
 
+  @@schema("app")
   @@map("app.MessageTemplates")
 }
 
@@ -168,6 +176,7 @@ model OutboundMessage {
   @@index([ownerId])
   @@index([status])
   @@index([createdAt])
+  @@schema("app")
   @@map("app.OutboundMessages")
 }
 
@@ -189,6 +198,7 @@ model Tag {
   
   @@index([name])
   @@index([isActive])
+  @@schema("app")
   @@map("app.Tags")
 }
 
@@ -205,6 +215,7 @@ model ContactTag {
   @@unique([contactId, tagId])
   @@index([contactId])
   @@index([tagId])
+  @@schema("app")
   @@map("app.ContactTags")
 }
 
@@ -229,6 +240,7 @@ model WhatsAppMessage {
   @@index([contactId])
   @@index([status])
   @@index([sentAt])
+  @@schema("app")
   @@map("app.WhatsAppMessages")
 }
 
@@ -255,6 +267,7 @@ model EmailServiceConfig {
   @@index([userId])
   @@index([serviceType])
   @@index([isActive])
+  @@schema("app")
   @@map("app.EmailServiceConfigs")
 }
 
@@ -277,6 +290,7 @@ model EmailAuthToken {
   @@index([userId])
   @@index([isValid])
   @@index([expiresAt])
+  @@schema("app")
   @@map("app.EmailAuthTokens")
 }
 
@@ -287,7 +301,7 @@ model EmailAuthToken {
 model User {
   id        String   @id @default(cuid()) @map("id")
   email     String   @unique @map("email")
-  passwordHash String @map("passwordHash")
+  password  String   @map("password")
   firstName String   @map("firstName")
   lastName  String   @map("lastName")
   isActive  Boolean  @default(true) @map("isActive")
@@ -305,6 +319,7 @@ model User {
   
   @@index([email])
   @@index([isActive])
+  @@schema("app")
   @@map("app.User")
 }
 
@@ -322,6 +337,7 @@ model PasswordResetToken {
   @@index([userId])
   @@index([token])
   @@index([expiresAt])
+  @@schema("app")
   @@map("app.PasswordResetTokens")
 }
 
@@ -339,6 +355,7 @@ model EmailVerificationToken {
   @@index([userId])
   @@index([token])
   @@index([expiresAt])
+  @@schema("app")
   @@map("app.EmailVerificationTokens")
 }
 
@@ -359,5 +376,6 @@ model UserSession {
   @@index([userId])
   @@index([refreshToken])
   @@index([expiresAt])
+  @@schema("app")
   @@map("app.UserSessions")
 }

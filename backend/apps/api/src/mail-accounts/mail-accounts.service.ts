@@ -523,41 +523,41 @@ export class MailAccountsService {
       let paramCount = 0;
 
       if (updateData.name !== undefined) {
-        updateQuery += `name = @P${paramCount++}, `;
+        updateQuery += `name = ?, `;
         updateValues.push(updateData.name);
       }
       if (updateData.email !== undefined) {
-        updateQuery += `email = @P${paramCount++}, `;
+        updateQuery += `email = ?, `;
         updateValues.push(updateData.email);
       }
       if (updateData.serviceType !== undefined) {
-        updateQuery += `serviceType = @P${paramCount++}, `;
+        updateQuery += `serviceType = ?, `;
         updateValues.push(updateData.serviceType);
       }
       if (updateData.encryptedPassword !== undefined) {
-        updateQuery += `encryptedPassword = @P${paramCount++}, `;
+        updateQuery += `encryptedPassword = ?, `;
         updateValues.push(updateData.encryptedPassword);
       }
       if (updateData.clientId !== undefined) {
-        updateQuery += `clientId = @P${paramCount++}, `;
+        updateQuery += `clientId = ?, `;
         updateValues.push(updateData.clientId);
       }
       if (updateData.encryptedClientSecret !== undefined) {
-        updateQuery += `encryptedClientSecret = @P${paramCount++}, `;
+        updateQuery += `encryptedClientSecret = ?, `;
         updateValues.push(updateData.encryptedClientSecret);
       }
       if (updateData.redirectUri !== undefined) {
-        updateQuery += `redirectUri = @P${paramCount++}, `;
+        updateQuery += `redirectUri = ?, `;
         updateValues.push(updateData.redirectUri);
       }
       if (updateData.isActive !== undefined) {
-        updateQuery += `isActive = @P${paramCount++}, `;
+        updateQuery += `isActive = ?, `;
         updateValues.push(updateData.isActive ? 1 : 0);
       }
 
       // Always update updatedAt
       updateQuery += `updatedAt = GETDATE() `;
-      updateQuery += `WHERE id = @P${paramCount}`;
+      updateQuery += `WHERE id = ?`;
       updateValues.push(id);
 
       // Remove trailing comma

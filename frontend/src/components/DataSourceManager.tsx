@@ -43,6 +43,13 @@ interface InvoiceDatabase {
   contactCount: number;
 }
 
+interface GmailAccountForm {
+  email: string;
+  clientId: string;
+  clientSecret: string;
+  name: string;
+}
+
 const DataSourceManager: React.FC = () => {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'gmail' | 'vcf' | 'invoice'>('gmail');
@@ -131,8 +138,41 @@ const DataSourceManager: React.FC = () => {
     },
     onSuccess: (data) => {
       // Open OAuth URL in new window
-      window.open(data.oauthUrl, '_blank', 'width=600,height=700');
-      queryClient.invalidateQueries({ queryKey: ['gmail-accounts'] });
+      const oauthWindow = window.open(data.oauthUrl, '_blank', 'width=600,height=700');
+      
+      // Listen for OAuth completion via postMessage
+      const handleOAuthMessage = (event: MessageEvent) => {
+        if (event.data && event.data.type === 'OAUTH_SUCCESS') {
+          console.log('✅ Received OAuth success message from popup');
+          
+          // Refresh Gmail accounts list immediately
+          queryClient.invalidateQueries({ queryKey: ['gmail-accounts'] });
+          
+          // Show success message
+          alert('Gmail account connected successfully!');
+          
+          // Remove the event listener
+          window.removeEventListener('message', handleOAuthMessage);
+        }
+      };
+      
+      // Add event listener for OAuth success message
+      window.addEventListener('message', handleOAuthMessage);
+      
+      // Fallback: Listen for window close (in case postMessage fails)
+      const checkOAuthCompletion = setInterval(() => {
+        if (oauthWindow && oauthWindow.closed) {
+          clearInterval(checkOAuthCompletion);
+          console.log('✅ OAuth window closed - refreshing Gmail accounts...');
+          
+          // Refresh Gmail accounts list immediately
+          queryClient.invalidateQueries({ queryKey: ['gmail-accounts'] });
+          
+          // Remove the event listener
+          window.removeEventListener('message', handleOAuthMessage);
+        }
+      }, 1000);
+      
       setIsGmailModalOpen(false);
     },
   });
@@ -149,6 +189,51 @@ const DataSourceManager: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['gmail-accounts'] });
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
+    },
+  });
+
+  // Edit Gmail account mutation
+  const editGmailMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: GmailAccountForm }) => {
+      const response = await fetch(`http://localhost:4002/api/mail-accounts/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'accept': '*/*'
+        },
+        body: JSON.stringify({
+          name: data.email,
+          email: data.email,
+          serviceType: 'GMAIL',
+          clientId: data.clientId,
+          clientSecret: data.clientSecret,
+          redirectUri: 'http://localhost:4002/api/mail-accounts/oauth-callback',
+          password: 'oauth'
+        })
+      });
+      
+      if (!response.ok) throw new Error('Failed to update Gmail account');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['gmail-accounts'] });
+      setEditingItem(null);
+    },
+  });
+
+  // Delete Gmail account mutation
+  const deleteGmailMutation = useMutation({
+    mutationFn: async (accountId: string) => {
+      const response = await fetch(`http://localhost:4002/api/mail-accounts/${accountId}`, {
+        method: 'DELETE',
+        headers: { 'accept': '*/*' }
+      });
+      
+      if (!response.ok) throw new Error('Failed to delete Gmail account');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['gmail-accounts'] });
     },
   });
 
@@ -248,27 +333,38 @@ const DataSourceManager: React.FC = () => {
 
               <div className="flex gap-2">
                 {account.syncStatus === 'success' ? (
-                  <button
-                    onClick={() => syncGmailMutation.mutate(account.id)}
-                    disabled={syncGmailMutation.isPending}
-                    className="flex-1 bg-green-600 text-white px-3 py-2 rounded text-sm hover:bg-green-700 disabled:opacity-50"
-                  >
-                    {syncGmailMutation.isPending ? 'Syncing...' : 'Sync Contacts'}
-                  </button>
+                  <div className="flex-1 flex items-center justify-center">
+                    <span className="text-green-600 font-medium text-sm">✓ Connected</span>
+                  </div>
                 ) : (
-                  <button
-                    onClick={() => setIsGmailModalOpen(true)}
-                    className="flex-1 bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700"
-                  >
-                    Complete Setup
-                  </button>
+                  <>
+                    <button
+                      onClick={() => setIsGmailModalOpen(true)}
+                      className="flex-1 bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700"
+                    >
+                      Complete Setup
+                    </button>
+                    <button 
+                      onClick={() => setEditingItem(account)}
+                      className="px-3 py-2 border rounded text-sm hover:bg-gray-50"
+                      title="Edit Gmail Account"
+                    >
+                      <Edit size={14} />
+                    </button>
+                    <button 
+                      onClick={() => {
+                        if (window.confirm('Are you sure you want to delete this Gmail account?')) {
+                          deleteGmailMutation.mutate(account.id);
+                        }
+                      }}
+                      disabled={deleteGmailMutation.isPending}
+                      className="px-3 py-2 border rounded text-sm hover:bg-gray-50 text-red-600 disabled:opacity-50"
+                      title="Delete Gmail Account"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </>
                 )}
-                <button className="px-3 py-2 border rounded text-sm hover:bg-gray-50">
-                  <Edit size={14} />
-                </button>
-                <button className="px-3 py-2 border rounded text-sm hover:bg-gray-50 text-red-600">
-                  <Trash2 size={14} />
-                </button>
               </div>
             </div>
           ))}
@@ -536,13 +632,18 @@ const DataSourceManager: React.FC = () => {
 
       {/* Data Source Modals */}
       <DataSourceModals
-        isGmailModalOpen={isGmailModalOpen}
+        isGmailModalOpen={isGmailModalOpen || !!editingItem}
         isInvoiceModalOpen={isInvoiceModalOpen}
-        onCloseGmail={() => setIsGmailModalOpen(false)}
+        onCloseGmail={() => {
+          setIsGmailModalOpen(false);
+          setEditingItem(null);
+        }}
         onCloseInvoice={() => setIsInvoiceModalOpen(false)}
         onSubmitGmail={addGmailMutation.mutate}
         onSubmitInvoice={addInvoiceDbMutation.mutate}
-        isLoading={addGmailMutation.isPending || addInvoiceDbMutation.isPending}
+        isLoading={addGmailMutation.isPending || editGmailMutation.isPending || addInvoiceDbMutation.isPending}
+        editingGmailItem={editingItem}
+        onEditGmail={editGmailMutation.mutate}
       />
     </div>
   );

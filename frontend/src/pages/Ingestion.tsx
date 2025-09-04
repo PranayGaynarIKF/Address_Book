@@ -147,7 +147,7 @@ const Ingestion: React.FC = () => {
       refetch();
       const total = response.total || 0;
       const syncTypeText = gmailSyncType === 'gmail-contacts-only' ? 'Gmail contacts' : 'contacts';
-      showSuccessMessage(`✅ Gmail contacts import completed successfully! ${total} ${syncTypeText} imported.`);
+      showSuccessMessage(`✅ Gmail contacts synced to staging successfully! ${total} ${syncTypeText} ready for processing.`);
     },
     onError: (error: any) => {
       setIsRunning(null);
@@ -192,7 +192,7 @@ const Ingestion: React.FC = () => {
       setIsRunning(null);
       refetch();
       const total = response.total || 0;
-      showSuccessMessage(`✅ Outlook contacts import completed successfully! ${total} contacts imported.`);
+      showSuccessMessage(`✅ Outlook contacts synced to staging successfully! ${total} contacts ready for processing.`);
     },
     onError: (error: any) => {
       setIsRunning(null);
@@ -237,7 +237,7 @@ const Ingestion: React.FC = () => {
       setIsRunning(null);
       refetch();
       const total = response.total || 0;
-      showSuccessMessage(`✅ Yahoo contacts import completed successfully! ${total} contacts imported.`);
+      showSuccessMessage(`✅ Yahoo contacts synced to staging successfully! ${total} contacts ready for processing.`);
     },
     onError: (error: any) => {
       setIsRunning(null);
@@ -282,7 +282,7 @@ const Ingestion: React.FC = () => {
       setIsRunning(null);
       refetch();
       const total = response.total || 0;
-      showSuccessMessage(`✅ Zoho contacts import completed successfully! ${total} contacts imported.`);
+      showSuccessMessage(`✅ Zoho contacts synced to staging successfully! ${total} contacts ready for processing.`);
     },
     onError: (error: any) => {
       setIsRunning(null);
@@ -296,7 +296,7 @@ const Ingestion: React.FC = () => {
       setIsRunning(null);
       refetch();
       const total = response.data?.total || 0;
-      showSuccessMessage(`✅ Zoho CRM import completed successfully! ${total} contacts imported.`);
+      showSuccessMessage(`✅ Zoho CRM synced to staging successfully! ${total} contacts ready for processing.`);
     },
     onError: (error: any) => {
       setIsRunning(null);
@@ -310,7 +310,7 @@ const Ingestion: React.FC = () => {
       setIsRunning(null);
       refetch();
       const total = response.data?.total || 0;
-      showSuccessMessage(`✅ Invoice system import completed successfully! ${total} contacts imported.`);
+      showSuccessMessage(`✅ Invoice system synced to staging successfully! ${total} contacts ready for processing.`);
     },
     onError: (error: any) => {
       setIsRunning(null);
@@ -324,7 +324,7 @@ const Ingestion: React.FC = () => {
       setIsRunning(null);
       refetch();
       const total = response.data?.total || 0;
-      showSuccessMessage(`✅ Mobile contacts import completed successfully! ${total} contacts imported.`);
+      showSuccessMessage(`✅ Mobile contacts synced to staging successfully! ${total} contacts ready for processing.`);
     },
     onError: (error: any) => {
       setIsRunning(null);
@@ -337,8 +337,41 @@ const Ingestion: React.FC = () => {
     onSuccess: (response) => {
       setIsRunning(null);
       refetch();
-      const total = response.data?.total || 0;
-      showSuccessMessage(`✅ Data cleaning and merging completed successfully! ${total} contacts processed.`);
+      
+      // Invalidate and refetch all contact-related queries to refresh the contacts page automatically
+      console.log('🔄 Invalidating contact queries after clean and merge...');
+      queryClient.invalidateQueries({ 
+        predicate: (query) => {
+          const queryKey = query.queryKey;
+          const shouldInvalidate = Array.isArray(queryKey) && 
+                 queryKey.length > 0 && 
+                 typeof queryKey[0] === 'string' && 
+                 queryKey[0].toLowerCase().includes('contact');
+          if (shouldInvalidate) {
+            console.log('🔄 Invalidating query:', queryKey);
+          }
+          return shouldInvalidate;
+        }
+      });
+      
+      // Force refetch of contact queries
+      queryClient.refetchQueries({ 
+        predicate: (query) => {
+          const queryKey = query.queryKey;
+          return Array.isArray(queryKey) && 
+                 queryKey.length > 0 && 
+                 typeof queryKey[0] === 'string' && 
+                 queryKey[0].toLowerCase().includes('contact');
+        }
+      });
+      console.log('✅ Contact queries invalidation and refetch completed');
+      
+      // Also trigger a custom event to notify other components
+      window.dispatchEvent(new CustomEvent('contactsUpdated'));
+      
+      // Use only inserted contacts as these are the actual new clean and merged contacts
+      const cleanAndMergedCount = response.data?.inserted || 0;
+      showSuccessMessage(`✅ Data cleaning and merging completed successfully! ${cleanAndMergedCount} contacts clean and merged.`);
     },
     onError: (error: any) => {
       setIsRunning(null);
@@ -347,14 +380,15 @@ const Ingestion: React.FC = () => {
   });
 
   const ingestionSources = [
-    {
-      id: 'zoho',
-      name: 'Zoho CRM',
-      description: 'Import contacts and leads from Zoho CRM',
-      icon: Database,
-      color: 'bg-blue-500',
-      mutation: runZohoCRMMutation,
-    },
+    // Zoho CRM sync hidden as requested
+    // {
+    //   id: 'zoho',
+    //   name: 'Zoho CRM',
+    //   description: 'Import contacts and leads from Zoho CRM',
+    //   icon: Database,
+    //   color: 'bg-blue-500',
+    //   mutation: runZohoCRMMutation,
+    // },
     {
       id: 'mail-contacts',
       name: 'Mail Contacts',
@@ -370,27 +404,28 @@ const Ingestion: React.FC = () => {
           color: 'bg-red-500',
           mutation: runGmailMutation,
         },
-        {
-          id: 'outlook',
-          name: 'Outlook Contacts',
-          description: 'Import contacts from Outlook address book',
-          color: 'bg-blue-500',
-          mutation: runOutlookMutation,
-        },
-        {
-          id: 'yahoo',
-          name: 'Yahoo Contacts',
-          description: 'Import contacts from Yahoo address book',
-          color: 'bg-yellow-500',
-          mutation: runYahooMutation,
-        },
-        {
-          id: 'zoho',
-          name: 'Zoho Contacts',
-          description: 'Import contacts from Zoho address book',
-          color: 'bg-orange-500',
-          mutation: runZohoMailMutation,
-        },
+                 // Outlook, Yahoo, and Zoho contacts hidden as requested
+         // {
+         //   id: 'outlook',
+         //   name: 'Outlook Contacts',
+         //   description: 'Import contacts from Outlook address book',
+         //   color: 'bg-blue-500',
+         //   mutation: runOutlookMutation,
+         // },
+         // {
+         //   id: 'yahoo',
+         //   name: 'Yahoo Contacts',
+         //   description: 'Import contacts from Yahoo address book',
+         //   color: 'bg-yellow-500',
+         //   mutation: runYahooMutation,
+         // },
+         // {
+         //   id: 'zoho',
+         //   name: 'Zoho Contacts',
+         //   description: 'Import contacts from Zoho address book',
+         //   color: 'bg-orange-500',
+         //   mutation: runZohoMailMutation,
+         // },
       ],
     },
     {
@@ -794,8 +829,8 @@ const Ingestion: React.FC = () => {
         </div>
       </div>
 
-      {/* Latest Import Status */}
-      <div className="bg-white shadow rounded-lg">
+      {/* Latest Import Status - Hidden as requested */}
+      {/* <div className="bg-white shadow rounded-lg">
         <div className="px-4 py-5 sm:p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg leading-6 font-medium text-gray-900">Latest Import Status</h3>
@@ -840,7 +875,7 @@ const Ingestion: React.FC = () => {
             </div>
           )}
         </div>
-      </div>
+      </div> */}
     </div>
   );
 };

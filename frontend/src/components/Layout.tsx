@@ -12,8 +12,6 @@ import {
   Menu, 
   X,
   ChevronRight,
-  Settings,
-  Bell,
   Link as LinkIcon,
   History,
   Mail,
@@ -62,12 +60,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   };
 
   return (
-         <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 relative overflow-hidden">
-       {/* Background Decorative Elements */}
-       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-         <div className="absolute top-20 right-20 w-96 h-96 bg-gradient-to-br from-primary-100/20 to-purple-100/20 rounded-full blur-3xl animate-pulse"></div>
-         <div className="absolute bottom-20 left-20 w-80 h-80 bg-gradient-to-tr from-indigo-100/20 to-blue-100/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
-       </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 relative overflow-hidden">
+      {/* Professional Background Pattern */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-0 left-0 w-full h-full opacity-40" style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.03'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
+        }}></div>
+        <div className="absolute top-20 right-20 w-96 h-96 bg-gradient-to-br from-blue-200/20 to-indigo-200/20 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-20 left-20 w-80 h-80 bg-gradient-to-tr from-purple-200/20 to-pink-200/20 rounded-full blur-3xl"></div>
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gradient-to-r from-cyan-200/10 to-blue-200/10 rounded-full blur-3xl"></div>
+      </div>
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div 
@@ -77,12 +79,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       )}
 
       {/* Sidebar */}
-             <div className={`
-         fixed inset-y-0 left-0 z-50 w-64 bg-white/90 backdrop-blur-2xl border-r border-gray-200/50
-         transform transition-all duration-500 ease-in-out lg:translate-x-0
-         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-         shadow-2xl shadow-gray-900/10
-       `}>
+      <div className={`
+        fixed inset-y-0 left-0 z-50 w-64 bg-white/95 backdrop-blur-xl border-r border-white/20
+        transform transition-all duration-500 ease-in-out lg:translate-x-0
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+        shadow-2xl shadow-gray-900/10
+      `}>
         <div className="flex flex-col h-full">
           {/* Logo */}
           <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200/50">
@@ -150,9 +152,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 </p>
                 <p className="text-xs text-gray-500">{user?.email || 'user@example.com'}</p>
               </div>
-              <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors duration-200">
-                <Settings className="h-4 w-4 text-gray-500" />
-              </button>
             </div>
             
             <button
@@ -186,15 +185,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </div>
             
             <div className="flex items-center space-x-4">
-              <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors duration-200 relative">
-                <Bell className="h-5 w-5 text-gray-600" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
-              </button>
-              <div className="w-8 h-8 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full flex items-center justify-center cursor-pointer hover:scale-110 transition-transform duration-200">
-                <span className="text-white font-medium text-sm">
-                  {user?.email?.charAt(0).toUpperCase() || 'U'}
-                </span>
-              </div>
+              {/* Notification and circle icons hidden */}
             </div>
           </div>
         </header>

@@ -1,6 +1,5 @@
 import { Injectable, ConflictException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
-import bcrypt from 'bcryptjs';
 import { CreateUserDto, UpdateUserDto, UserResponseDto } from './dto/user.dto';
 
 @Injectable()
@@ -19,14 +18,11 @@ export class UsersService {
       throw new ConflictException('User with this email already exists');
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 12);
-
-    // Create user
+    // Store password as plain text
     const user = await this.prisma.user.create({
       data: {
         email,
-        passwordHash: hashedPassword,
+        password: password, // Store as plain text
         firstName,
         lastName,
         isActive: true,
@@ -35,7 +31,7 @@ export class UsersService {
     });
 
     // Return user without password
-    const { passwordHash: _, ...userWithoutPassword } = user;
+    const { password: _, ...userWithoutPassword } = user;
     return userWithoutPassword;
   }
 
@@ -61,7 +57,7 @@ export class UsersService {
       return null;
     }
 
-    const { passwordHash, ...userWithoutPassword } = user;
+    const { password, ...userWithoutPassword } = user;
     return userWithoutPassword;
   }
 
@@ -72,7 +68,8 @@ export class UsersService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+    // Compare passwords as plain text
+    const isPasswordValid = password === user.password;
     
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid credentials');
@@ -83,7 +80,7 @@ export class UsersService {
       UPDATE [app].[User] SET lastLoginAt = ${new Date()} WHERE id = ${user.id}
     `;
 
-    const { passwordHash: _, ...userWithoutPassword } = user;
+    const { password: _, ...userWithoutPassword } = user;
     return userWithoutPassword;
   }
 
@@ -92,9 +89,9 @@ export class UsersService {
     
     let data: any = { ...updateData };
     
-    // Hash password if provided
+    // Store password as plain text if provided
     if (password) {
-      data.passwordHash = await bcrypt.hash(password, 12);
+      data.password = password;
     }
 
     const user = await this.prisma.user.update({
@@ -102,7 +99,7 @@ export class UsersService {
       data,
     });
 
-    const { passwordHash: _, ...userWithoutPassword } = user;
+    const { password: _, ...userWithoutPassword } = user;
     return userWithoutPassword;
   }
 
@@ -120,7 +117,7 @@ export class UsersService {
     });
 
     return users.map(user => {
-      const { passwordHash, ...userWithoutPassword } = user;
+      const { password, ...userWithoutPassword } = user;
       return userWithoutPassword;
     });
   }
@@ -134,16 +131,14 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
-    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.passwordHash);
+    const isCurrentPasswordValid = currentPassword === user.password;
     if (!isCurrentPasswordValid) {
       throw new UnauthorizedException('Invalid current password');
     }
 
-    const hashedNewPassword = await bcrypt.hash(newPassword, 12);
-    
     await this.prisma.user.update({
       where: { id: userId },
-      data: { passwordHash: hashedNewPassword },
+      data: { password: newPassword },
     });
   }
 }

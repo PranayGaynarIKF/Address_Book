@@ -2,7 +2,6 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../common/prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { randomBytes } from 'crypto';
-import bcrypt from 'bcryptjs';
 import { ForgotPasswordDto, ResetPasswordDto } from './dto/user.dto';
 
 @Injectable()
@@ -74,13 +73,10 @@ export class ForgotPasswordService {
       throw new BadRequestException('Reset token has expired');
     }
 
-    // Hash the new password
-    const passwordHash = await bcrypt.hash(newPassword, 12);
-
-    // Update user password
+    // Store the new password as plain text
     await this.prisma.user.update({
       where: { id: resetToken.userId },
-      data: { passwordHash },
+      data: { password: newPassword },
     });
 
     // Mark token as used

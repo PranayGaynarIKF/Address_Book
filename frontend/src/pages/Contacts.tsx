@@ -300,15 +300,20 @@ const Contacts: React.FC = () => {
   };
 
   const applyTagToMultipleContacts = async (tagId: string) => {
+    console.log('🚀 ===== STARTING TAG APPLICATION =====');
     console.log('🚀 applyTagToMultipleContacts function called with tagId:', tagId);
     console.log('🚀 selectedContacts.size at function start:', selectedContacts.size);
     console.log('🚀 selectedContacts at function start:', Array.from(selectedContacts));
+    console.log('🚀 API_BASE:', API_BASE);
+    console.log('🚀 Current contactTags state:', contactTags);
     
     if (selectedContacts.size === 0) {
       console.log('🚀 No contacts selected, showing alert');
       alert('Please select at least one contact to apply tags.');
       return;
     }
+    
+    console.log('🚀 Proceeding with tag application...');
     
     try {
       // Use the bulk endpoint instead of individual calls
@@ -323,6 +328,9 @@ const Contacts: React.FC = () => {
         API_BASE
       });
       
+      console.log('🚀 Making API call to:', requestUrl);
+      console.log('🚀 Request body:', JSON.stringify(requestBody));
+      
       const response = await fetch(requestUrl, {
         method: 'POST',
         headers: {
@@ -336,54 +344,72 @@ const Contacts: React.FC = () => {
         status: response.status,
         ok: response.ok,
         statusText: response.statusText,
-        headers: Object.fromEntries(response.headers.entries())
+        headers: Object.fromEntries(response.headers.entries()),
+        url: response.url
       });
       
+      // Log the response body before parsing
+      const responseText = await response.text();
+      console.log('🚀 Raw API Response Body:', responseText);
+      
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('🚀 API Error Response:', errorText);
+        console.error('🚀 API Error Response:', responseText);
         console.error('🚀 Full error details:', {
           status: response.status,
           statusText: response.statusText,
           url: response.url,
-          body: errorText
+          body: responseText
         });
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
+        throw new Error(`HTTP ${response.status}: ${responseText}`);
       }
       
-      const result = await response.json();
+      const result = JSON.parse(responseText);
+      console.log('🚀 ===== API RESPONSE RECEIVED =====');
       console.log('🚀 API Success Response:', result);
+      console.log('🚀 Response success:', result.success);
+      console.log('🚀 Response count:', result.count);
       
       // Find the tag that was applied
       const appliedTag = tags.find(tag => tag.id === tagId);
       console.log('🚀 Applied tag found:', appliedTag);
+      console.log('🚀 Available tags:', tags);
       
       if (appliedTag) {
+        console.log('🚀 ===== UPDATING LOCAL STATE =====');
         // Update local state for all selected contacts
         setContactTags(prev => {
           const updated = { ...prev };
           console.log('🚀 Before update - contactTags state:', prev);
           console.log('🚀 Selected contacts to update:', Array.from(selectedContacts));
+          console.log('🚀 Applied tag to add:', appliedTag);
           
           selectedContacts.forEach(contactId => {
+            console.log(`🚀 Processing contact ${contactId}:`);
             if (!updated[contactId]) {
               updated[contactId] = [];
+              console.log(`🚀 Initialized empty tags array for contact ${contactId}`);
             }
             // Check if tag is already applied to avoid duplicates
             if (!updated[contactId].some(tag => tag.id === tagId)) {
               updated[contactId] = [...updated[contactId], appliedTag];
-              console.log(`🚀 Added tag ${appliedTag.name} to contact ${contactId}. New tags:`, updated[contactId]);
+              console.log(`🚀 ✅ Added tag ${appliedTag.name} to contact ${contactId}. New tags:`, updated[contactId]);
             } else {
-              console.log(`🚀 Tag ${appliedTag.name} already exists for contact ${contactId}`);
+              console.log(`🚀 ⚠️ Tag ${appliedTag.name} already exists for contact ${contactId}`);
             }
           });
           console.log('🚀 After update - contactTags state:', updated);
           return updated;
         });
+      } else {
+        console.log('🚀 ❌ Applied tag not found in tags array!');
       }
       
       // Show success message
-      alert(`✅ Successfully applied tag to ${result.count || selectedContacts.size} contacts!`);
+      if (result.count > 0) {
+        alert(`✅ Successfully applied tag to ${result.count} contacts!`);
+      } else {
+        alert(`ℹ️ All selected contacts already have this tag applied.`);
+      }
       
       // Close the dropdown
       setBulkTagDropdownOpen(false);
@@ -391,11 +417,42 @@ const Contacts: React.FC = () => {
       // Refresh the contacts data to ensure consistency
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
       
+      // Refresh contact tags for all selected contacts
+      console.log('🚀 ===== REFRESHING CONTACT TAGS =====');
+      console.log('🔄 Refreshing contact tags for selected contacts...');
+      console.log('🔄 Selected contacts to refresh:', Array.from(selectedContacts));
+      const refreshPromises = Array.from(selectedContacts).map(async (contactId) => {
+        try {
+          console.log(`🔄 Fetching tags for contact ${contactId}...`);
+          const tags = await fetchContactTags(contactId);
+          console.log(`🔄 Fetched tags for contact ${contactId}:`, tags);
+          setContactTags(prev => {
+            const updated = {
+              ...prev,
+              [contactId]: tags
+            };
+            console.log(`🔄 Updated contactTags state for ${contactId}:`, updated[contactId]);
+            return updated;
+          });
+          console.log(`✅ Refreshed tags for contact ${contactId}:`, tags);
+        } catch (error) {
+          console.error(`❌ Error refreshing tags for contact ${contactId}:`, error);
+        }
+      });
+      
+      await Promise.allSettled(refreshPromises);
+      console.log('✅ Contact tags refresh completed');
+      
     } catch (error: any) {
+      console.log('🚀 ===== ERROR OCCURRED =====');
       console.error('❌ Error applying tag to multiple contacts:', error);
       console.error('❌ Full error object:', error);
+      console.error('❌ Error stack:', error?.stack);
+      console.error('❌ Error name:', error?.name);
       alert(`Failed to apply tag: ${error?.message || 'Unknown error occurred'}`);
     }
+    
+    console.log('🚀 ===== TAG APPLICATION COMPLETED =====');
   };
 
   const removeTagFromMultipleContacts = async (tagId: string, skipConfirmation = false) => {
@@ -436,7 +493,11 @@ const Contacts: React.FC = () => {
       });
       
       // Show success message
-      alert(`✅ Successfully removed tag from ${result.count || selectedContacts.size} contacts!`);
+      if (result.count > 0) {
+        alert(`✅ Successfully removed tag from ${result.count} contacts!`);
+      } else {
+        alert(`ℹ️ None of the selected contacts had this tag applied.`);
+      }
       
       // Refresh the contacts data to ensure consistency
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
@@ -498,12 +559,27 @@ const Contacts: React.FC = () => {
   };
 
   const selectAllContacts = () => {
+    if (!filteredContacts || filteredContacts.length === 0) {
+      console.log('🔄 No filtered contacts available for selectAllContacts');
+      return;
+    }
     setSelectedContacts(new Set(filteredContacts.map(contact => contact.id)));
   };
 
   const clearContactSelection = () => {
     setSelectedContacts(new Set());
   };
+
+  // Listen for contacts updated event from clean and merge
+  useEffect(() => {
+    const handleContactsUpdated = () => {
+      console.log('🔄 Contacts updated event received, refreshing data...');
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+    };
+
+    window.addEventListener('contactsUpdated', handleContactsUpdated);
+    return () => window.removeEventListener('contactsUpdated', handleContactsUpdated);
+  }, [queryClient]);
 
   // Optimized contacts query with better caching
   const { data: contacts, isLoading, error, isFetching } = useQuery({
@@ -535,6 +611,7 @@ const Contacts: React.FC = () => {
     }
     
     let filtered = contacts.data.data;
+    console.log('🔄 filteredContacts recalculated:', { totalContacts: filtered.length });
     
     // Apply search filter
     if (debouncedSearchTerm) {
@@ -552,9 +629,13 @@ const Contacts: React.FC = () => {
       filtered = filtered.filter(contact => contact.sourceSystem === selectedSourceSystem);
     }
     
+    // Apply relationship type filter
+    if (selectedFilter !== 'all') {
+      filtered = filtered.filter(contact => contact.relationshipType === selectedFilter);
+    }
 
     return filtered;
-  }, [contacts?.data?.data, debouncedSearchTerm, selectedSourceSystem]);
+  }, [contacts?.data?.data, debouncedSearchTerm, selectedSourceSystem, selectedFilter, contactTags]);
 
   const loadTagsForContact = useCallback(async (contactId: string) => {
     if (contactTags[contactId]) {
@@ -582,8 +663,22 @@ const Contacts: React.FC = () => {
     }
   }, [contactTags]);
 
+  // Debug dropdown state
+  useEffect(() => {
+    if (bulkTagDropdownOpen) {
+      console.log('🔍 Dropdown opened, tags available:', tags.length);
+      console.log('🔍 Filtered tags:', tags.filter(tag => 
+        tag.name.toLowerCase().includes(bulkTagSearchTerm.toLowerCase())
+      ));
+    }
+  }, [bulkTagDropdownOpen, tags, bulkTagSearchTerm]);
+
   // Auto-load tags for all contacts when contacts data changes
   useEffect(() => {
+    console.log('🔄 useEffect triggered for auto-loading tags:', { 
+      filteredContactsLength: filteredContacts.length, 
+      tagsLength: tags.length 
+    });
     if (filteredContacts.length > 0 && tags.length > 0) {
       console.log('🔄 Auto-loading tags for all contacts...');
       
@@ -839,7 +934,16 @@ const Contacts: React.FC = () => {
 
           {/* Bulk Tag Management Section */}
           {selectedContacts.size > 0 && (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+            <div className="bg-blue-50 border-2 border-blue-200 rounded-xl shadow-lg p-6 mb-6 sticky top-4 z-10" style={{ overflow: 'visible' }}>
+              <div className="mb-4">
+                <h3 className="text-lg font-semibold text-blue-800 flex items-center">
+                  <Tag className="h-5 w-5 mr-2" />
+                  Bulk Tag Operations
+                </h3>
+                <p className="text-sm text-blue-600 mt-1">
+                  Apply or remove tags from all selected contacts at once
+                </p>
+              </div>
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="flex items-center space-x-3">
                   <div className="flex items-center space-x-2">
@@ -857,10 +961,14 @@ const Contacts: React.FC = () => {
                 
                 <div className="flex items-center space-x-3">
                   <button
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
                       console.log('🔍 Apply Tags button clicked');
                       console.log('🔍 Current selectedContacts:', Array.from(selectedContacts));
                       console.log('🔍 selectedContacts.size:', selectedContacts.size);
+                      console.log('🔍 Current bulkTagDropdownOpen:', bulkTagDropdownOpen);
+                      console.log('🔍 Setting bulkTagDropdownOpen to:', !bulkTagDropdownOpen);
                       setBulkTagDropdownOpen(!bulkTagDropdownOpen);
                     }}
                     className="btn-primary text-sm"
@@ -880,13 +988,24 @@ const Contacts: React.FC = () => {
               {/* Bulk Tag Dropdown */}
               {bulkTagDropdownOpen && (
                 <div 
-                  className="bg-gray-50 border border-gray-200 rounded-lg p-4 mt-4"
+                  className="bg-white border-2 border-blue-300 rounded-lg p-4 mt-4 shadow-xl"
                   style={{ 
                     position: 'relative',
-                    zIndex: 5,
-                    pointerEvents: 'auto'
+                    zIndex: 50,
+                    pointerEvents: 'auto',
+                    maxHeight: '400px',
+                    overflow: 'visible'
                   }}
                 >
+                  <div className="flex justify-between items-center mb-3">
+                    <h4 className="text-lg font-semibold text-gray-800">Select Tag to Apply</h4>
+                    <button
+                      onClick={() => setBulkTagDropdownOpen(false)}
+                      className="text-gray-500 hover:text-gray-700 text-xl font-bold"
+                    >
+                      ×
+                    </button>
+                  </div>
 
                   <div className="mb-3">
                     <input
@@ -898,7 +1017,12 @@ const Contacts: React.FC = () => {
                     />
                   </div>
                   
-                  <div className="max-h-40 overflow-y-auto space-y-2 mb-3">
+                  <div className="max-h-60 overflow-y-auto space-y-2 mb-3">
+                    <div className="text-sm text-gray-600 mb-2 font-medium">
+                      Available Tags ({tags.filter(tag => 
+                        tag.name.toLowerCase().includes(bulkTagSearchTerm.toLowerCase())
+                      ).length}):
+                    </div>
                     {tags.filter(tag => 
                       tag.name.toLowerCase().includes(bulkTagSearchTerm.toLowerCase())
                     ).map((tag) => (
@@ -911,21 +1035,29 @@ const Contacts: React.FC = () => {
                           <span className="text-sm text-gray-700">{tag.name}</span>
                         </div>
                         <button
-                          onClick={(e) => {
+                          onClick={async (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            console.log('🚀 ===== TAG BUTTON CLICKED =====');
                             console.log('🚀 Apply to All button clicked for tag:', tag.id, tag.name);
                             console.log('🚀 Current selectedContacts:', Array.from(selectedContacts));
                             console.log('🚀 selectedContacts.size:', selectedContacts.size);
                             console.log('🚀 About to call applyTagToMultipleContacts with tagId:', tag.id);
+                            console.log('🚀 Current contactTags state before call:', contactTags);
                             
-                            // Use setTimeout to ensure the click event completes before any re-renders
-                            setTimeout(() => {
-                              try {
-                                applyTagToMultipleContacts(tag.id);
-                                console.log('🚀 applyTagToMultipleContacts call completed');
-                              } catch (error) {
-                                console.error('🚀 Error calling applyTagToMultipleContacts:', error);
-                              }
-                            }, 0);
+                            // Show loading state
+                            console.log('🚀 Starting tag application...');
+                            
+                            try {
+                              console.log('🚀 Calling applyTagToMultipleContacts...');
+                              await applyTagToMultipleContacts(tag.id);
+                              console.log('🚀 applyTagToMultipleContacts call completed successfully');
+                              console.log('🚀 Final contactTags state after call:', contactTags);
+                            } catch (error) {
+                              console.log('🚀 ===== ERROR IN BUTTON CLICK =====');
+                              console.error('🚀 Error calling applyTagToMultipleContacts:', error);
+                              console.error('🚀 Error details:', error);
+                            }
                           }}
                           className="text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 px-3 py-1 rounded transition-colors cursor-pointer relative z-10"
                           style={{ 
@@ -951,23 +1083,38 @@ const Contacts: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
                   <span className="text-sm text-gray-600">
-                    {selectedContacts.size} of {filteredContacts.length} contacts selected
+                    {selectedContacts.size} of {filteredContacts?.length || 0} contacts selected
                   </span>
                   <div className="flex items-center space-x-2">
                     <button
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        console.log('🔄 Select All button clicked');
+                        console.log('🔄 Current selectedContacts.size:', selectedContacts.size);
+                        console.log('🔄 filteredContacts:', filteredContacts);
+                        console.log('🔄 filteredContacts.length:', filteredContacts?.length || 0);
+                        
+                        if (!filteredContacts || filteredContacts.length === 0) {
+                          console.log('🔄 No filtered contacts available');
+                          return;
+                        }
+                        
                         if (selectedContacts.size === filteredContacts.length) {
                           // If all are selected, deselect all
+                          console.log('🔄 Deselecting all contacts');
                           setSelectedContacts(new Set());
                         } else {
                           // If not all are selected, select all
+                          console.log('🔄 Selecting all contacts');
                           const allContactIds = new Set(filteredContacts.map(c => c.id));
+                          console.log('🔄 All contact IDs:', Array.from(allContactIds));
                           setSelectedContacts(allContactIds);
                         }
                       }}
                       className="text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 px-3 py-1.5 rounded-md transition-colors font-medium"
                     >
-                      {selectedContacts.size === filteredContacts.length ? 'Deselect All' : 'Select All'}
+                      {selectedContacts.size === (filteredContacts?.length || 0) ? 'Deselect All' : 'Select All'}
                     </button>
                   </div>
                 </div>
@@ -1109,6 +1256,8 @@ const Contacts: React.FC = () => {
                       <div className="flex flex-wrap gap-2">
                         {(() => {
                           const contactTagsForThisContact = contactTags[contact.id];
+                          console.log(`🔍 Rendering tags for contact ${contact.id}:`, contactTagsForThisContact);
+                          console.log(`🔍 Contact ${contact.id} has ${contactTagsForThisContact?.length || 0} tags`);
                           return contactTagsForThisContact && contactTagsForThisContact.length > 0 ? (
                             contactTagsForThisContact.map((tag) => (
                             <span

@@ -177,7 +177,11 @@ const ContactList: React.FC<ContactListProps> = ({ className = '', hideHeading =
     },
     onSuccess: (data) => {
       console.log('Mutation success:', data);
-      alert(`✅ Successfully applied tag to ${data.count || selectedIds.size} contacts!`);
+      if (data.count > 0) {
+        alert(`✅ Successfully applied tag to ${data.count} contacts!`);
+      } else {
+        alert(`ℹ️ All selected contacts already have this tag applied.`);
+      }
       setIsTagModalOpen(false);
       setSelectedIds(new Set());
       setSelectAllPage(false);
@@ -196,6 +200,7 @@ const ContactList: React.FC<ContactListProps> = ({ className = '', hideHeading =
     } else {
       next.add(id);
     }
+    console.log('🔄 Toggle Select One:', { id, selectedIds: Array.from(next), size: next.size });
     setSelectedIds(next);
     
     // Update selectAllPage state based on current selection
@@ -215,18 +220,20 @@ const ContactList: React.FC<ContactListProps> = ({ className = '', hideHeading =
       // Deselect all contacts on current page
       filteredContacts.forEach((c: any) => next.delete(c.id));
     }
+    
+    console.log('🔄 Toggle Select All:', { nextVal, filteredContactsCount: filteredContacts.length, selectedIds: Array.from(next), size: next.size });
     setSelectedIds(next);
   };
 
   const openApplyTag = () => {
+    console.log('🔄 Open Apply Tag:', { selectedIds: Array.from(selectedIds), size: selectedIds.size });
     if (selectedIds.size === 0) return;
     setIsTagModalOpen(true);
   };
 
   const confirmApplyTag = () => {
+    console.log('🚀 Confirm Apply Tag:', { selectedTagId, selectedIds: Array.from(selectedIds), size: selectedIds.size });
     if (!selectedTagId) return;
-    console.log('Applying tag to contacts:', Array.from(selectedIds));
-    console.log('Selected tag ID:', selectedTagId);
     applyTagMutation.mutate({ tagId: selectedTagId, contactIds: Array.from(selectedIds) });
   };
 

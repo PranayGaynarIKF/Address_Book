@@ -73,11 +73,21 @@ const OAuthCallback: React.FC = () => {
           localStorage.setItem('googleOAuthTokens', JSON.stringify(result.data));
           console.log('💾 Tokens stored in localStorage');
           
-          // Auto-close window after 5 seconds
+          // Notify parent window that OAuth completed successfully
+          try {
+            if (window.opener) {
+              window.opener.postMessage({ type: 'OAUTH_SUCCESS', data: result.data }, '*');
+              console.log('📤 Notified parent window of OAuth success');
+            }
+          } catch (error) {
+            console.warn('Could not notify parent window:', error);
+          }
+          
+          // Auto-close window after 3 seconds
           setTimeout(() => {
             console.log('🔄 Auto-closing window...');
             window.close();
-          }, 5000);
+          }, 3000);
         } else {
           throw new Error(result.message || 'OAuth completion failed');
         }

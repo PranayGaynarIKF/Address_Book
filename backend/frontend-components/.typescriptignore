@@ -1,3 +1,0 @@
-# This directory contains frontend React components
-# These should not be compiled by the backend TypeScript compiler
-# Each file in this directory has its own tsconfig.json for frontend compilation

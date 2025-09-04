@@ -6,6 +6,7 @@ interface GmailAccountForm {
   email: string;
   clientId: string;
   clientSecret: string;
+  name: string;
 }
 
 interface InvoiceDatabaseForm {
@@ -25,6 +26,8 @@ interface DataSourceModalsProps {
   onSubmitGmail: (data: GmailAccountForm) => void;
   onSubmitInvoice: (data: InvoiceDatabaseForm) => void;
   isLoading?: boolean;
+  editingGmailItem?: any;
+  onEditGmail?: (data: { id: string; data: GmailAccountForm }) => void;
 }
 
 const GmailAccountModal: React.FC<{
@@ -32,17 +35,32 @@ const GmailAccountModal: React.FC<{
   onClose: () => void;
   onSubmit: (data: GmailAccountForm) => void;
   isLoading?: boolean;
-}> = ({ isOpen, onClose, onSubmit, isLoading }) => {
+  editingItem?: any;
+  onEdit?: (data: { id: string; data: GmailAccountForm }) => void;
+}> = ({ isOpen, onClose, onSubmit, isLoading, editingItem, onEdit }) => {
   const { register, handleSubmit, reset, formState: { errors } } = useForm<GmailAccountForm>();
+  const isEditing = !!editingItem;
 
   useEffect(() => {
     if (isOpen) {
-      reset();
+      if (editingItem) {
+        reset({
+          email: editingItem.email || '',
+          clientId: editingItem.clientId || '',
+          clientSecret: editingItem.clientSecret || ''
+        });
+      } else {
+        reset();
+      }
     }
-  }, [isOpen, reset]);
+  }, [isOpen, reset, editingItem]);
 
   const handleFormSubmit = (data: GmailAccountForm) => {
-    onSubmit(data);
+    if (isEditing && onEdit) {
+      onEdit({ id: editingItem.id, data });
+    } else {
+      onSubmit(data);
+    }
   };
 
   if (!isOpen) return null;
@@ -53,7 +71,7 @@ const GmailAccountModal: React.FC<{
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold flex items-center gap-2">
             <Mail className="text-blue-600" size={20} />
-            Add Gmail Account
+            {isEditing ? 'Edit Gmail Account' : 'Add Gmail Account'}
           </h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X size={20} />
@@ -136,7 +154,7 @@ const GmailAccountModal: React.FC<{
               disabled={isLoading}
               className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
             >
-              {isLoading ? 'Adding...' : 'Add Account'}
+              {isLoading ? (isEditing ? 'Updating...' : 'Adding...') : (isEditing ? 'Update Account' : 'Add Account')}
             </button>
           </div>
         </form>
@@ -321,7 +339,9 @@ const DataSourceModals: React.FC<DataSourceModalsProps> = ({
   onCloseInvoice,
   onSubmitGmail,
   onSubmitInvoice,
-  isLoading = false
+  isLoading = false,
+  editingGmailItem,
+  onEditGmail
 }) => {
   return (
     <>
@@ -330,6 +350,8 @@ const DataSourceModals: React.FC<DataSourceModalsProps> = ({
         onClose={onCloseGmail}
         onSubmit={onSubmitGmail}
         isLoading={isLoading}
+        editingItem={editingGmailItem}
+        onEdit={onEditGmail}
       />
       <InvoiceDatabaseModal
         isOpen={isInvoiceModalOpen}
