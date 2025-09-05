@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { EmailManagerService } from './email-manager.service';
 import { EmailDatabaseService } from './email-database.service';
+import { TokenRefreshService } from './token-refresh.service';
 import { 
   EmailServiceType, 
   EmailFetchOptions, 
@@ -62,6 +63,7 @@ export class EmailController {
   constructor(
     private readonly emailManagerService: EmailManagerService,
     private readonly emailDatabaseService: EmailDatabaseService,
+    private readonly tokenRefreshService: TokenRefreshService,
   ) {}
 
   // Helper method to get user ID from request
@@ -262,6 +264,51 @@ export class EmailController {
       message: `Successfully revoked token for ${serviceType} service`,
       serviceType
     };
+  }
+
+  // Manual token refresh endpoint
+  @Post('auth/:serviceType/refresh-manual')
+  async refreshTokenManually(
+    @Param('serviceType') serviceType: EmailServiceType,
+    @Body() body: { userId: string }
+  ) {
+    try {
+      const result = await this.tokenRefreshService.refreshTokenManually(body.userId, serviceType);
+      return {
+        success: true,
+        message: result.message,
+        serviceType,
+        timestamp: new Date()
+      };
+    } catch (error) {
+      this.logger.error(`Manual token refresh failed for ${serviceType}:`, error.message);
+      return {
+        success: false,
+        message: `Failed to refresh token: ${error.message}`,
+        serviceType,
+        timestamp: new Date()
+      };
+    }
+  }
+
+  // Token status monitoring endpoint
+  @Get('auth/token-status')
+  async getTokenStatus() {
+    try {
+      const status = await this.tokenRefreshService.getTokenStatus();
+      return {
+        success: true,
+        data: status,
+        timestamp: new Date()
+      };
+    } catch (error) {
+      this.logger.error('Failed to get token status:', error.message);
+      return {
+        success: false,
+        message: `Failed to get token status: ${error.message}`,
+        timestamp: new Date()
+      };
+    }
   }
 
   // Manual token insertion for testing (temporary)

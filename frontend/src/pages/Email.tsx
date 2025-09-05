@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import EmailDashboard from '../components/EmailDashboard';
 import GmailCampaignManager from '../components/GmailCampaignManager';
+import TokenRefreshManager from '../components/TokenRefreshManager';
 
 const Email: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'gmail-campaigns'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'gmail-campaigns' | 'token-manager'>('overview');
 
   return (
     <div className="space-y-6">
@@ -30,12 +31,23 @@ const Email: React.FC = () => {
           >
             Gmail Campaigns
           </button>
+          <button
+            onClick={() => setActiveTab('token-manager')}
+            className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-all duration-200 ${
+              activeTab === 'token-manager'
+                ? 'bg-white text-primary-600 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Token Manager
+          </button>
         </div>
       </div>
 
       {/* Content */}
       {activeTab === 'overview' && <EmailDashboard />}
       {activeTab === 'gmail-campaigns' && <GmailCampaignManager />}
+      {activeTab === 'token-manager' && <TokenRefreshManager />}
     </div>
   );
 };

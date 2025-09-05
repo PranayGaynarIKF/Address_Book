@@ -350,8 +350,8 @@ export class EmailDatabaseService {
   async invalidateEmailAuthToken(id: string): Promise<void> {
     try {
       await this.prisma.$executeRaw`
-        UPDATE [db_address_book].[app].[EmailAuthTokens]
-        SET [isValid] = 0, [updatedAt] = GETDATE()
+        UPDATE [app].[EmailAuthTokens]
+        SET [is_valid] = 0, [updated_at] = GETDATE()
         WHERE [id] = ${id}
       `;
     } catch (error) {
@@ -368,15 +368,27 @@ export class EmailDatabaseService {
         updateData.scope = JSON.stringify(newToken.scope);
       }
 
-      // Build dynamic UPDATE query
+      // Build dynamic UPDATE query with correct column names
+      const columnMapping = {
+        accessToken: 'access_token',
+        refreshToken: 'refresh_token',
+        expiresAt: 'expires_at',
+        scope: 'scope',
+        email: 'email',
+        isValid: 'is_valid'
+      };
+
       const setClauses = Object.keys(updateData)
         .filter(key => key !== 'id')
-        .map(key => `[${key}] = ${typeof updateData[key] === 'string' ? `'${updateData[key]}'` : updateData[key]}`)
+        .map(key => {
+          const dbColumn = columnMapping[key] || key;
+          return `[${dbColumn}] = ${typeof updateData[key] === 'string' ? `'${updateData[key]}'` : updateData[key]}`;
+        })
         .join(', ');
 
       const updateQuery = `
-        UPDATE [db_address_book].[app].[EmailAuthTokens]
-        SET ${setClauses}, [updatedAt] = GETDATE()
+        UPDATE [app].[EmailAuthTokens]
+        SET ${setClauses}, [updated_at] = GETDATE()
         WHERE [id] = '${id}'
       `;
 
@@ -384,22 +396,81 @@ export class EmailDatabaseService {
       
       // Get the updated token
       const result = await this.prisma.$queryRaw`
-        SELECT [id], [userId], [serviceType], [accessToken], [refreshToken], [expiresAt], [scope], [email], [isValid], [createdAt], [updatedAt]
-        FROM [db_address_book].[app].[EmailAuthTokens]
+        SELECT [id], [user_id], [service_type], [access_token], [refresh_token], [expires_at], [scope], [email], [is_valid], [created_at], [updated_at]
+        FROM [app].[EmailAuthTokens]
         WHERE [id] = ${id}
       `;
 
       const updatedToken = Array.isArray(result) ? result[0] : result;
 
       return {
-        ...updatedToken,
+        id: updatedToken.id,
+        userId: updatedToken.user_id,
+        serviceType: updatedToken.service_type,
+        accessToken: updatedToken.access_token,
+        refreshToken: updatedToken.refresh_token,
+        expiresAt: updatedToken.expires_at,
         scope: JSON.parse(updatedToken.scope),
-        createdAt: updatedToken.createdAt,
-        updatedAt: updatedToken.updatedAt
+        email: updatedToken.email,
+        isValid: updatedToken.is_valid,
+        createdAt: updatedToken.created_at,
+        updatedAt: updatedToken.updated_at
       };
     } catch (error) {
       this.logger.error('Failed to refresh email auth token:', error);
       throw new Error(`Failed to refresh email auth token: ${error.message}`);
+    }
+  }
+
+  // Update email auth token (simpler version for token refresh service)
+  async updateEmailAuthToken(id: string, updateData: {
+    accessToken?: string;
+    refreshToken?: string;
+    expiresAt?: Date;
+    scope?: string;
+    isValid?: boolean;
+  }): Promise<void> {
+    try {
+      const setParts = [];
+      const values = [];
+
+      if (updateData.accessToken !== undefined) {
+        setParts.push(`access_token = @P${values.length + 1}`);
+        values.push(updateData.accessToken);
+      }
+      if (updateData.refreshToken !== undefined) {
+        setParts.push(`refresh_token = @P${values.length + 1}`);
+        values.push(updateData.refreshToken);
+      }
+      if (updateData.expiresAt !== undefined) {
+        setParts.push(`expires_at = @P${values.length + 1}`);
+        values.push(updateData.expiresAt);
+      }
+      if (updateData.scope !== undefined) {
+        setParts.push(`scope = @P${values.length + 1}`);
+        values.push(updateData.scope);
+      }
+      if (updateData.isValid !== undefined) {
+        setParts.push(`is_valid = @P${values.length + 1}`);
+        values.push(updateData.isValid);
+      }
+
+      if (setParts.length === 0) return;
+
+      setParts.push(`updated_at = @P${values.length + 1}`);
+      values.push(new Date());
+
+      const query = `
+        UPDATE [app].[EmailAuthTokens] 
+        SET ${setParts.join(', ')} 
+        WHERE id = @P${values.length + 1}
+      `;
+      values.push(id);
+
+      await this.prisma.$executeRawUnsafe(query, ...values);
+    } catch (error) {
+      this.logger.error('Failed to update email auth token:', error);
+      throw new Error(`Failed to update email auth token: ${error.message}`);
     }
   }
 
@@ -544,6 +615,95 @@ export class EmailDatabaseService {
     } catch (error) {
       this.logger.error('Failed to get email service stats:', error);
       throw new Error(`Failed to get email service stats: ${error.message}`);
+    }
+  }
+
+  // Token Refresh Service Methods
+  async getTokensNearExpiry(minutesThreshold: number): Promise<EmailAuthToken[]> {
+    try {
+      const thresholdDate = new Date(Date.now() + minutesThreshold * 60 * 1000);
+      
+      const result = await this.prisma.$queryRaw`
+        SELECT [id], [user_id], [service_type], [access_token], [refresh_token], [expires_at], [scope], [email], [is_valid], [created_at], [updated_at]
+        FROM [app].[EmailAuthTokens]
+        WHERE [is_valid] = 1 AND [expires_at] <= ${thresholdDate} AND [expires_at] > GETDATE()
+        ORDER BY [expires_at] ASC
+      `;
+
+      const tokens = Array.isArray(result) ? result : [result];
+      return tokens.map((token: any) => ({
+        id: token.id,
+        userId: token.user_id,
+        serviceType: token.service_type,
+        accessToken: token.access_token,
+        refreshToken: token.refresh_token,
+        expiresAt: token.expires_at,
+        scope: JSON.parse(token.scope),
+        email: token.email,
+        isValid: token.is_valid,
+        createdAt: token.created_at,
+        updatedAt: token.updated_at
+      }));
+    } catch (error) {
+      this.logger.error('Failed to get tokens near expiry:', error);
+      throw new Error(`Failed to get tokens near expiry: ${error.message}`);
+    }
+  }
+
+  async getAllEmailAuthTokens(): Promise<EmailAuthToken[]> {
+    try {
+      const result = await this.prisma.$queryRaw`
+        SELECT [id], [user_id], [service_type], [access_token], [refresh_token], [expires_at], [scope], [email], [is_valid], [created_at], [updated_at]
+        FROM [app].[EmailAuthTokens]
+        ORDER BY [created_at] DESC
+      `;
+
+      const tokens = Array.isArray(result) ? result : [result];
+      return tokens.map((token: any) => ({
+        id: token.id,
+        userId: token.user_id,
+        serviceType: token.service_type,
+        accessToken: token.access_token,
+        refreshToken: token.refresh_token,
+        expiresAt: token.expires_at,
+        scope: JSON.parse(token.scope),
+        email: token.email,
+        isValid: token.is_valid,
+        createdAt: token.created_at,
+        updatedAt: token.updated_at
+      }));
+    } catch (error) {
+      this.logger.error('Failed to get all email auth tokens:', error);
+      throw new Error(`Failed to get all email auth tokens: ${error.message}`);
+    }
+  }
+
+  async getTokensByService(serviceType: EmailServiceType): Promise<EmailAuthToken[]> {
+    try {
+      const result = await this.prisma.$queryRaw`
+        SELECT [id], [user_id], [service_type], [access_token], [refresh_token], [expires_at], [scope], [email], [is_valid], [created_at], [updated_at]
+        FROM [app].[EmailAuthTokens]
+        WHERE [service_type] = ${serviceType} AND [is_valid] = 1
+        ORDER BY [created_at] DESC
+      `;
+
+      const tokens = Array.isArray(result) ? result : [result];
+      return tokens.map((token: any) => ({
+        id: token.id,
+        userId: token.user_id,
+        serviceType: token.service_type,
+        accessToken: token.access_token,
+        refreshToken: token.refresh_token,
+        expiresAt: token.expires_at,
+        scope: JSON.parse(token.scope),
+        email: token.email,
+        isValid: token.is_valid,
+        createdAt: token.created_at,
+        updatedAt: token.updated_at
+      }));
+    } catch (error) {
+      this.logger.error('Failed to get tokens by service:', error);
+      throw new Error(`Failed to get tokens by service: ${error.message}`);
     }
   }
 }

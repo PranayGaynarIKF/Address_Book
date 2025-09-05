@@ -120,11 +120,16 @@ export class GmailAdapter {
             const phone = person.phoneNumbers?.[0]?.value;
             const company = person.organizations?.[0]?.name;
 
-            if (email && !contacts.find(c => c.email === email)) {
+            // Include contacts even if they don't have email addresses
+            // Only check for duplicates if email exists
+            const isDuplicate = email ? contacts.find(c => c.email === email) : 
+                               contacts.find(c => c.name === name.trim() && c.phone === phone);
+            
+            if (!isDuplicate) {
               contacts.push({
                 id: person.resourceName || `contact_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                 name: name.trim(),
-                email: email.toLowerCase(),
+                email: email ? email.toLowerCase() : undefined,
                 phone: phone || undefined,
                 company: company || undefined
               });

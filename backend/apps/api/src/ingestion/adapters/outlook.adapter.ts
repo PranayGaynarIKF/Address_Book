@@ -70,11 +70,16 @@ export class OutlookAdapter {
           const company = contact.companyName;
           const jobTitle = contact.jobTitle;
 
-          if (email && !contacts.find(c => c.email === email)) {
+          // Include contacts even if they don't have email addresses
+          // Only check for duplicates if email exists
+          const isDuplicate = email ? contacts.find(c => c.email === email) : 
+                             contacts.find(c => c.name === name.trim() && c.phone === phone);
+          
+          if (!isDuplicate) {
             contacts.push({
               id: contact.id || `outlook_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
               name: name.trim(),
-              email: email.toLowerCase(),
+              email: email ? email.toLowerCase() : undefined,
               phone: phone || undefined,
               company: company || undefined,
               jobTitle: jobTitle || undefined,

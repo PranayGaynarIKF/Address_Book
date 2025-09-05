@@ -49,12 +49,12 @@ export class WriterService {
         const matchEmail = (normEmail ?? rawEmail ?? null);
         const matchPhone = sanitizePhone(normPhoneE164 ?? rawPhone ?? null);
 
-        // Check if contact already exists by (source_system + source_record_id) OR by email (case-insensitive)
+        // Check if contact already exists by (source_system + source_record_id) OR by email (case-insensitive) OR by exact name + phone match
         const existing = await this.prisma.$queryRaw`
           SELECT TOP 1 * FROM [app].[Contacts]
           WHERE (source_system = ${sourceSystem} AND source_record_id = ${sourceRecordId})
              OR ((${matchEmail} IS NOT NULL) AND LOWER(email) = LOWER(${matchEmail}))
-             OR ((${matchPhone} IS NOT NULL) AND 
+             OR ((${matchPhone} IS NOT NULL) AND name = ${normName ?? rawName} AND
                  REPLACE(REPLACE(REPLACE(mobileno,'+',''),' ',''),'-','') = 
                  REPLACE(REPLACE(REPLACE(${matchPhone},'+',''),' ',''),'-',''))
         `;
