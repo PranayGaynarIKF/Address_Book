@@ -129,51 +129,66 @@ export class TagsService {
 
   async updateTag(id: string, updateTagDto: UpdateTagDto) {
     try {
-      // Build dynamic update query
-      const updates = [];
-      const params = [];
+      this.logger.log(`Updating tag ${id} with data:`, updateTagDto);
       
-      if (updateTagDto.name) {
-        updates.push('name = ?');
-        params.push(updateTagDto.name.trim());
+      // First check if tag exists
+      const existingTag = await this.prisma.tag.findUnique({
+        where: { id }
+      });
+      
+      if (!existingTag) {
+        throw new NotFoundException(`Tag with ID ${id} not found`);
       }
-      if (updateTagDto.color) {
-        updates.push('color = ?');
-        params.push(updateTagDto.color);
+      
+      // Prepare update data
+      const updateData: any = {};
+      
+      if (updateTagDto.name !== undefined) {
+        updateData.name = updateTagDto.name.trim();
+      }
+      if (updateTagDto.color !== undefined) {
+        updateData.color = updateTagDto.color;
       }
       if (updateTagDto.description !== undefined) {
-        updates.push('description = ?');
-        params.push(updateTagDto.description?.trim() || null);
+        updateData.description = updateTagDto.description?.trim() || null;
       }
       if (updateTagDto.isActive !== undefined) {
-        updates.push('is_active = ?');
-        params.push(updateTagDto.isActive ? 1 : 0);
+        updateData.isActive = updateTagDto.isActive;
       }
       
-      if (updates.length === 0) {
+      if (Object.keys(updateData).length === 0) {
         throw new Error('No fields to update');
       }
       
-      updates.push('updated_at = GETDATE()');
-      params.push(id);
+      this.logger.log(`Updating tag with data:`, updateData);
       
-      const updateQuery = `UPDATE [app].[Tags] SET ${updates.join(', ')} WHERE id = ?`;
+      // Use Prisma's update method
+      const updatedTag = await this.prisma.tag.update({
+        where: { id },
+        data: updateData
+      });
       
-      await this.prisma.$executeRawUnsafe(updateQuery, ...params);
+      this.logger.log(`Tag updated successfully: ${updatedTag.name}`);
       
-      // Get updated tag
-      const updatedTag = await this.getTagById(id);
-      this.logger.log(`Tag updated: ${updatedTag.name}`);
-      return updatedTag;
+      // Return tag with contact count
+      const tagWithCount = await this.getTagById(id);
+      return tagWithCount;
     } catch (error) {
-      if (error.message && error.message.includes('duplicate key')) {
+      this.logger.error('Error updating tag:', error);
+      this.logger.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        tagId: id,
+        updateData: updateTagDto
+      });
+      
+      if (error.code === 'P2002') {
         throw new ConflictException(`Tag with name '${updateTagDto.name}' already exists`);
       }
       if (error instanceof NotFoundException) {
         throw error;
       }
-      this.logger.error('Error updating tag:', error);
-      throw error;
+      throw new Error(`Failed to update tag: ${error.message}`);
     }
   }
 
@@ -186,16 +201,10 @@ export class TagsService {
       const contactCount = contactCountResult[0]?.count || 0;
 
       if (contactCount > 0) {
-        // Soft delete - just mark as inactive
-        await this.prisma.$executeRaw`
-          UPDATE [app].[Tags] 
-          SET is_active = 0, updated_at = GETDATE() 
-          WHERE id = ${id}
-        `;
-        
+        // Get tag details for error message
         const tag = await this.getTagById(id);
-        this.logger.log(`Tag soft deleted: ${tag.name} (${contactCount} contacts affected)`);
-        return { message: `Tag deactivated. ${contactCount} contacts still have this tag.` };
+        this.logger.log(`Cannot delete tag: ${tag.name} (${contactCount} contacts using it)`);
+        throw new ConflictException(`Cannot delete tag "${tag.name}". It is currently applied to ${contactCount} contact(s). Please remove the tag from all contacts first.`);
       }
 
       // Hard delete if no contacts are using it

@@ -43,7 +43,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Sync', href: '/ingestion', icon: Database },
     { name: 'Data Sources', href: '/data-sources', icon: LinkIcon },
     // { name: 'Merge History', href: '/merge-history', icon: History },
-    { name: 'Tag Management', href: '/tag-management', icon: Tag },
+    { name: 'Tag History', href: '/tag-management', icon: Tag },
   ];
 
   const { logout } = useAuth();

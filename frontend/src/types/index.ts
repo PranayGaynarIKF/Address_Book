@@ -28,7 +28,7 @@ export interface CreateContactDto {
   email?: string;
   mobileE164?: string;
   relationshipType?: 'CLIENT' | 'VENDOR' | 'LEAD' | 'OTHER';
-  sourceSystem: 'INVOICE' | 'GMAIL' | 'ZOHO' | 'ASHISH' | 'MOBILE';
+  sourceSystem: 'INVOICE' | 'GMAIL' | 'MOBILE';
   sourceRecordId: string;
 }
 
@@ -41,7 +41,7 @@ export interface ContactResponseDto {
   relationshipType?: 'CLIENT' | 'VENDOR' | 'LEAD' | 'OTHER';
   isWhatsappReachable: boolean;
   dataQualityScore: number;
-  sourceSystem: 'INVOICE' | 'GMAIL' | 'ZOHO' | 'ASHISH' | 'MOBILE';
+  sourceSystem: 'INVOICE' | 'GMAIL' | 'MOBILE';
   sourceRecordId: string;
   createdAt: string;
   updatedAt: string;

@@ -1,8 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { 
   Search, 
-  Filter, 
   Download, 
   Users, 
   Mail, 
@@ -11,12 +10,8 @@ import {
   FileText,
   Eye,
   MoreVertical,
-  ChevronDown,
   X,
-  Tag,
-  CheckSquare,
-  Check,
-  XCircle
+  Tag
 } from 'lucide-react';
 import { contactsAPI } from '../../services/api';
 // Excel export functionality - using a simple CSV approach instead of XLSX
@@ -50,41 +45,35 @@ const exportToCSV = (data: any[], filename: string) => {
   document.body.removeChild(link);
 };
 
-// ContactTags component to display tags for a contact
-const ContactTags: React.FC<{ contactId: string }> = ({ contactId }) => {
-  console.log('ContactTags component rendered for contactId:', contactId);
-  
-  // Very simple test - just show a test tag for every contact
-  return (
-    <div className="flex flex-wrap items-center gap-1">
-      <span className="text-xs text-gray-600">ID: {contactId.substring(0, 8)}...</span>
-      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
-        <Tag className="h-3 w-3 mr-1" />
-        Test Tag
-      </span>
-    </div>
-  );
-};
 
 interface ContactListProps {
   className?: string;
   hideHeading?: boolean;
+  onBulkTagApply?: (contactIds: string[], tagId: string) => Promise<void>;
+  onBulkTagRemove?: (contactIds: string[], tagId: string) => Promise<void>;
 }
 
-const ContactList: React.FC<ContactListProps> = ({ className = '', hideHeading = false }) => {
-  const queryClient = useQueryClient();
+const ContactList: React.FC<ContactListProps> = ({ 
+  className = '', 
+  hideHeading = false, 
+  onBulkTagApply,
+  onBulkTagRemove 
+}) => {
   // State for filters and search
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedFilter, setSelectedFilter] = useState('all');
   const [selectedSourceSystem, setSelectedSourceSystem] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setCurrentPageSize] = useState(10); // Reduced from 20 to 10 for faster loading
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
-  // Bulk selection & tag modal
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [selectAllPage, setSelectAllPage] = useState(false);
-  const [isTagModalOpen, setIsTagModalOpen] = useState(false);
-  const [selectedTagId, setSelectedTagId] = useState<string>('');
+  
+  // Bulk selection state
+  const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
+  const [isSelectAll, setIsSelectAll] = useState(false);
+  const [bulkTagDropdownOpen, setBulkTagDropdownOpen] = useState(false);
+  const [bulkTagSearchTerm, setBulkTagSearchTerm] = useState('');
+  const [bulkTagLoading, setBulkTagLoading] = useState(false);
+  const [tags, setTags] = useState<any[]>([]);
+
 
   // Manual search function
   const handleSearch = () => {
@@ -101,7 +90,7 @@ const ContactList: React.FC<ContactListProps> = ({ className = '', hideHeading =
 
   // Fetch contacts with filters - Optimized for performance
   const { data: contacts, isLoading, error, isFetching } = useQuery({
-    queryKey: ['contactList', currentPage, pageSize, debouncedSearchTerm, selectedFilter, selectedSourceSystem],
+    queryKey: ['contactList', currentPage, pageSize, debouncedSearchTerm, selectedSourceSystem],
     queryFn: () => {
       const params: any = { page: currentPage, limit: pageSize };
       
@@ -129,113 +118,9 @@ const ContactList: React.FC<ContactListProps> = ({ className = '', hideHeading =
   const totalContacts = contacts?.data?.total || 0;
   const totalPages = Math.ceil(totalContacts / pageSize);
 
-  // Sync selectAllPage state when page changes or filteredContacts change
-  useEffect(() => {
-    if (filteredContacts.length > 0) {
-      const allCurrentPageSelected = filteredContacts.every((c: any) => selectedIds.has(c.id));
-      setSelectAllPage(allCurrentPageSelected);
-    } else {
-      setSelectAllPage(false);
-    }
-  }, [filteredContacts, selectedIds]);
 
-  // Fetch available tags for modal
-  const { data: tags } = useQuery({
-    queryKey: ['tags-list'],
-    queryFn: async () => {
-      const res = await fetch('http://localhost:4002/tags', { headers: { accept: '*/*' } });
-      if (!res.ok) throw new Error('Failed to load tags');
-      return res.json();
-    },
-    staleTime: 5 * 60 * 1000,
-  });
 
-  // Apply tag mutation (bulk)
-  const applyTagMutation = useMutation({
-    mutationFn: async ({ tagId, contactIds }: { tagId: string; contactIds: string[] }) => {
-      console.log('Making API call to:', `http://localhost:4002/tags/${tagId}/contacts`);
-      console.log('Request body:', { contactIds });
-      
-      const res = await fetch(`http://localhost:4002/tags/${tagId}/contacts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', accept: '*/*' },
-        body: JSON.stringify({ contactIds }),
-      });
-      
-      console.log('Response status:', res.status);
-      console.log('Response ok:', res.ok);
-      
-      if (!res.ok) {
-        const errorText = await res.text();
-        console.error('API Error:', errorText);
-        throw new Error(`Failed to apply tag: ${res.status} ${errorText}`);
-      }
-      
-      const result = await res.json();
-      console.log('API Success:', result);
-      return result;
-    },
-    onSuccess: (data) => {
-      console.log('Mutation success:', data);
-      if (data.count > 0) {
-        alert(`✅ Successfully applied tag to ${data.count} contacts!`);
-      } else {
-        alert(`ℹ️ All selected contacts already have this tag applied.`);
-      }
-      setIsTagModalOpen(false);
-      setSelectedIds(new Set());
-      setSelectAllPage(false);
-      queryClient.invalidateQueries({ queryKey: ['contactList'] });
-    },
-    onError: (error) => {
-      console.error('Mutation error:', error);
-      alert(`Failed to apply tag: ${error.message}`);
-    },
-  });
 
-  const toggleSelectOne = (id: string) => {
-    const next = new Set(selectedIds);
-    if (next.has(id)) {
-      next.delete(id);
-    } else {
-      next.add(id);
-    }
-    console.log('🔄 Toggle Select One:', { id, selectedIds: Array.from(next), size: next.size });
-    setSelectedIds(next);
-    
-    // Update selectAllPage state based on current selection
-    const allCurrentPageSelected = filteredContacts.every((c: any) => next.has(c.id));
-    setSelectAllPage(allCurrentPageSelected);
-  };
-
-  const toggleSelectAllPage = () => {
-    const nextVal = !selectAllPage;
-    setSelectAllPage(nextVal);
-    const next = new Set<string>(selectedIds);
-    
-    if (nextVal) {
-      // Select all contacts on current page
-      filteredContacts.forEach((c: any) => next.add(c.id));
-    } else {
-      // Deselect all contacts on current page
-      filteredContacts.forEach((c: any) => next.delete(c.id));
-    }
-    
-    console.log('🔄 Toggle Select All:', { nextVal, filteredContactsCount: filteredContacts.length, selectedIds: Array.from(next), size: next.size });
-    setSelectedIds(next);
-  };
-
-  const openApplyTag = () => {
-    console.log('🔄 Open Apply Tag:', { selectedIds: Array.from(selectedIds), size: selectedIds.size });
-    if (selectedIds.size === 0) return;
-    setIsTagModalOpen(true);
-  };
-
-  const confirmApplyTag = () => {
-    console.log('🚀 Confirm Apply Tag:', { selectedTagId, selectedIds: Array.from(selectedIds), size: selectedIds.size });
-    if (!selectedTagId) return;
-    applyTagMutation.mutate({ tagId: selectedTagId, contactIds: Array.from(selectedIds) });
-  };
 
   // Export to CSV function
   const handleExportToCSV = () => {
@@ -276,13 +161,159 @@ const ContactList: React.FC<ContactListProps> = ({ className = '', hideHeading =
   // Clear all filters
   const clearFilters = () => {
     setSearchTerm('');
-    setSelectedFilter('all');
     setSelectedSourceSystem('all');
     setCurrentPage(1);
   };
 
   // Check if any filters are active
-  const hasActiveFilters = searchTerm || selectedFilter !== 'all' || selectedSourceSystem !== 'all';
+  const hasActiveFilters = searchTerm || selectedSourceSystem !== 'all';
+
+  // Bulk selection functions
+  const handleSelectContact = (contactId: string) => {
+    setSelectedContacts(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(contactId)) {
+        newSet.delete(contactId);
+      } else {
+        newSet.add(contactId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (isSelectAll) {
+      setSelectedContacts(new Set());
+      setIsSelectAll(false);
+    } else {
+      const allContactIds = new Set(filteredContacts.map(contact => contact.id));
+      setSelectedContacts(allContactIds);
+      setIsSelectAll(true);
+    }
+  };
+
+  // Load tags on component mount
+  useEffect(() => {
+    const loadTags = async () => {
+      try {
+        const response = await fetch('http://localhost:4002/tags', {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (response.ok) {
+          const tagsData = await response.json();
+          setTags(tagsData);
+        }
+      } catch (error) {
+        console.error('Error loading tags:', error);
+      }
+    };
+    
+    loadTags();
+  }, []);
+
+  // Handle clicking outside dropdown to close it
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (!target.closest('.bulk-tag-dropdown-container')) {
+        setBulkTagDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleBulkTagApply = async (tagId: string) => {
+    if (selectedContacts.size === 0 || !onBulkTagApply) return;
+    
+    try {
+      setBulkTagLoading(true);
+      await onBulkTagApply(Array.from(selectedContacts), tagId);
+      setSelectedContacts(new Set());
+      setIsSelectAll(false);
+      setBulkTagDropdownOpen(false);
+    } catch (error) {
+      console.error('Error applying bulk tag:', error);
+    } finally {
+      setBulkTagLoading(false);
+    }
+  };
+
+  const handleBulkTagRemove = async (tagId: string) => {
+    if (selectedContacts.size === 0 || !onBulkTagRemove) return;
+    
+    try {
+      setBulkTagLoading(true);
+      await onBulkTagRemove(Array.from(selectedContacts), tagId);
+      setSelectedContacts(new Set());
+      setIsSelectAll(false);
+      setBulkTagDropdownOpen(false);
+    } catch (error) {
+      console.error('Error removing bulk tag:', error);
+    } finally {
+      setBulkTagLoading(false);
+    }
+  };
+
+  const handleRemoveAllBulkTags = async () => {
+    if (selectedContacts.size === 0 || !onBulkTagRemove) return;
+    
+    try {
+      setBulkTagLoading(true);
+      
+      // Get all tags for each selected contact and remove them
+      const contactIds = Array.from(selectedContacts);
+      const promises = contactIds.map(async (contactId) => {
+        try {
+          // Fetch all tags for this contact
+          const response = await fetch(`http://localhost:4002/tags/contacts/${contactId}/tags`, {
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
+          
+          if (response.ok) {
+            const contactTags = await response.json();
+            
+            // Remove each tag from the contact
+            const removePromises = contactTags.map(async (tag: any) => {
+              const removeResponse = await fetch(`http://localhost:4002/tags/contacts/${contactId}/tags/${tag.id}`, {
+                method: 'DELETE',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+              });
+              
+              if (!removeResponse.ok) {
+                throw new Error(`HTTP error! status: ${removeResponse.status}`);
+              }
+            });
+            
+            await Promise.allSettled(removePromises);
+          }
+        } catch (error) {
+          console.error(`Error removing all tags from contact ${contactId}:`, error);
+        }
+      });
+      
+      await Promise.allSettled(promises);
+      
+      // Clear selection
+      setSelectedContacts(new Set());
+      setIsSelectAll(false);
+      setBulkTagDropdownOpen(false);
+      
+      console.log(`✅ All tags removed from ${selectedContacts.size} contacts`);
+    } catch (error) {
+      console.error('Error removing all bulk tags:', error);
+    } finally {
+      setBulkTagLoading(false);
+    }
+  };
 
   return (
     <div className={`space-y-6 ${className}`}>
@@ -302,21 +333,121 @@ const ContactList: React.FC<ContactListProps> = ({ className = '', hideHeading =
           )}
           
           <div className="flex flex-col sm:flex-row gap-3">
-                         <button
-               onClick={handleExportToCSV}
-               disabled={!filteredContacts.length || isLoading}
-               className="btn-secondary flex items-center justify-center space-x-2 px-6 py-3 disabled:opacity-50 disabled:cursor-not-allowed"
-             >
-               <Download className="h-5 w-5" />
-               <span>Export to CSV</span>
-             </button>
+            {selectedContacts.size > 0 && (
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-600 font-medium">
+                  {selectedContacts.size} selected
+                </span>
+                
+                {/* Bulk Tag Dropdown */}
+                <div className="relative bulk-tag-dropdown-container">
+                  <button
+                    onClick={() => setBulkTagDropdownOpen(!bulkTagDropdownOpen)}
+                    disabled={bulkTagLoading}
+                    className="btn-secondary flex items-center space-x-2 px-4 py-2 disabled:opacity-50"
+                  >
+                    <Tag className="h-4 w-4" />
+                    <span>Apply Tag</span>
+                  </button>
+                  
+                  {bulkTagDropdownOpen && (
+                    <div className="absolute z-50 right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-xl ring-1 ring-black ring-opacity-5">
+                      <div className="p-4">
+                        <div className="flex items-center justify-between mb-4">
+                          <h5 className="font-semibold text-gray-900">Apply Tag to {selectedContacts.size} Contacts</h5>
+                          <button
+                            onClick={() => setBulkTagDropdownOpen(false)}
+                            className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                        
+                        <div className="mb-4">
+                          <input
+                            type="text"
+                            placeholder="Search tags..."
+                            value={bulkTagSearchTerm}
+                            onChange={(e) => setBulkTagSearchTerm(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                          />
+                        </div>
+                        
+                        <div className="max-h-48 overflow-y-auto space-y-2 mb-4">
+                          {tags.filter(tag => 
+                            tag.name.toLowerCase().includes(bulkTagSearchTerm.toLowerCase())
+                          ).map((tag) => (
+                            <div key={tag.id} className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg">
+                              <div className="flex items-center space-x-3">
+                                <div
+                                  className="w-4 h-4 rounded-full border border-gray-200"
+                                  style={{ backgroundColor: tag.color }}
+                                />
+                                <span className="text-sm font-medium text-gray-700">{tag.name}</span>
+                              </div>
+                              <div className="flex space-x-2">
+                                <button
+                                  onClick={() => handleBulkTagApply(tag.id)}
+                                  disabled={bulkTagLoading}
+                                  className="text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 px-3 py-1.5 rounded-md transition-colors font-medium disabled:opacity-50"
+                                >
+                                  {bulkTagLoading ? 'Applying...' : 'Apply'}
+                                </button>
+                                <button
+                                  onClick={() => handleBulkTagRemove(tag.id)}
+                                  disabled={bulkTagLoading}
+                                  className="text-xs bg-red-100 text-red-700 hover:bg-red-200 px-3 py-1.5 rounded-md transition-colors font-medium disabled:opacity-50"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        
+                        {/* Remove All Tags Button */}
+                        <div className="pt-4 border-t border-gray-200">
+                          <button
+                            onClick={handleRemoveAllBulkTags}
+                            disabled={bulkTagLoading}
+                            className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <X className="h-4 w-4" />
+                            <span>{bulkTagLoading ? 'Removing All Tags...' : 'Remove All Tags'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                <button
+                  onClick={() => {
+                    setSelectedContacts(new Set());
+                    setIsSelectAll(false);
+                  }}
+                  className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  Clear Selection
+                </button>
+              </div>
+            )}
+            
+            <button
+              onClick={handleExportToCSV}
+              disabled={!filteredContacts.length || isLoading}
+              className="btn-secondary flex items-center justify-center space-x-2 px-6 py-3 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Download className="h-5 w-5" />
+              <span>Export to CSV</span>
+            </button>
           </div>
         </div>
       </div>
 
       {/* Search and Filters */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                 <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Search */}
           <div className="lg:col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -352,22 +483,6 @@ const ContactList: React.FC<ContactListProps> = ({ className = '', hideHeading =
             </div>
           </div>
 
-          {/* Status Filter */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Filter by Status
-            </label>
-            <select
-              value={selectedFilter}
-              onChange={(e) => setSelectedFilter(e.target.value)}
-              className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200"
-            >
-              <option value="all">All Statuses</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="pending">Pending</option>
-            </select>
-          </div>
 
                      {/* Source System Filter */}
            <div>
@@ -382,9 +497,7 @@ const ContactList: React.FC<ContactListProps> = ({ className = '', hideHeading =
                <option value="all">All Sources</option>
                <option value="MOBILE">Mobile</option>
                <option value="GMAIL">Gmail</option>
-               <option value="ZOHO">Zoho</option>
                <option value="INVOICE">Invoice</option>
-               <option value="ASHISH">Ashish</option>
              </select>
            </div>
            
@@ -423,11 +536,6 @@ const ContactList: React.FC<ContactListProps> = ({ className = '', hideHeading =
                 {selectedSourceSystem !== 'all' && (
                   <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
                     Source: {selectedSourceSystem}
-                  </span>
-                )}
-                {selectedFilter !== 'all' && (
-                  <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800">
-                    Status: {selectedFilter}
                   </span>
                 )}
               </div>
@@ -476,31 +584,6 @@ const ContactList: React.FC<ContactListProps> = ({ className = '', hideHeading =
             )}
           </div>
 
-          {/* Bulk actions when selection active */}
-          {selectedIds.size > 0 && (
-            <div className="mt-4 flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <div className="flex items-center gap-2 text-blue-800 text-sm">
-                <CheckSquare className="h-4 w-4" />
-                <span>
-                  {selectedIds.size} selected
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={openApplyTag}
-                  className="px-3 py-1.5 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700"
-                >
-                  Apply Tag
-                </button>
-                <button
-                  onClick={() => { setSelectedIds(new Set()); setSelectAllPage(false); }}
-                  className="px-3 py-1.5 border rounded-md text-sm text-gray-700 hover:bg-gray-50"
-                >
-                  Clear Selection
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       )}
 
@@ -552,14 +635,6 @@ const ContactList: React.FC<ContactListProps> = ({ className = '', hideHeading =
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3">
-                    <input
-                      type="checkbox"
-                      checked={selectAllPage}
-                      onChange={toggleSelectAllPage}
-                      className="h-4 w-4 text-primary-600 border-gray-300 rounded"
-                    />
-                  </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Contact
                   </th>
@@ -570,27 +645,13 @@ const ContactList: React.FC<ContactListProps> = ({ className = '', hideHeading =
                     Source
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Created
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredContacts.map((contact) => (
                   <tr key={contact.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(contact.id)}
-                        onChange={() => toggleSelectOne(contact.id)}
-                        className="h-4 w-4 text-primary-600 border-gray-300 rounded"
-                      />
-                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-10 w-10">
@@ -634,18 +695,8 @@ const ContactList: React.FC<ContactListProps> = ({ className = '', hideHeading =
                         {contact.sourceSystem || 'Unknown'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(contact)}`}>
-                        {contact.companyName ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {contact.createdAt ? new Date(contact.createdAt).toLocaleDateString() : '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <button className="text-primary-600 hover:text-primary-900 transition-colors">
-                        <MoreVertical className="h-4 w-4" />
-                      </button>
                     </td>
                   </tr>
                 ))}
@@ -743,47 +794,6 @@ const ContactList: React.FC<ContactListProps> = ({ className = '', hideHeading =
         </div>
       )}
 
-      {/* Apply Tag Modal */}
-      {isTagModalOpen && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">Apply Tag to {selectedIds.size} contacts</h3>
-              <button onClick={() => setIsTagModalOpen(false)} className="text-gray-400 hover:text-gray-600">
-                <XCircle className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="space-y-3">
-              <label className="block text-sm font-medium text-gray-700">Select Tag</label>
-              <select
-                value={selectedTagId}
-                onChange={(e) => setSelectedTagId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-              >
-                <option value="">Choose a tag...</option>
-                {(tags || []).map((t: any) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="mt-6 flex items-center justify-end gap-2">
-              <button
-                onClick={() => setIsTagModalOpen(false)}
-                className="px-4 py-2 border rounded-md text-sm hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmApplyTag}
-                disabled={!selectedTagId || applyTagMutation.isPending}
-                className="px-4 py-2 bg-primary-600 text-white rounded-md text-sm hover:bg-primary-700 disabled:opacity-50"
-              >
-                {applyTagMutation.isPending ? 'Applying...' : 'Apply Tag'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

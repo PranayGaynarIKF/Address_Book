@@ -115,19 +115,35 @@ export class TagsController {
   @ApiResponse({ status: 200, description: 'Tag updated successfully' })
   @ApiResponse({ status: 404, description: 'Tag not found' })
   @ApiResponse({ status: 409, description: 'Tag name already exists' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   async updateTag(@Param('id') id: string, @Body() updateTagDto: UpdateTagDto) {
-    this.logger.log(`Updating tag: ${id}`);
-    return this.tagsService.updateTag(id, updateTagDto);
+    try {
+      this.logger.log(`Updating tag: ${id} with data:`, updateTagDto);
+      const result = await this.tagsService.updateTag(id, updateTagDto);
+      this.logger.log(`Tag updated successfully: ${id}`);
+      return result;
+    } catch (error) {
+      this.logger.error(`Error updating tag ${id}:`, error);
+      throw error;
+    }
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Delete tag (soft delete if contacts use it)' })
+  @ApiOperation({ summary: 'Delete tag (only if not used by contacts)' })
   @ApiParam({ name: 'id', description: 'Tag ID' })
   @ApiResponse({ status: 200, description: 'Tag deleted successfully' })
   @ApiResponse({ status: 404, description: 'Tag not found' })
+  @ApiResponse({ status: 409, description: 'Tag is in use by contacts' })
   async deleteTag(@Param('id') id: string) {
-    this.logger.log(`Deleting tag: ${id}`);
-    return this.tagsService.deleteTag(id);
+    try {
+      this.logger.log(`Deleting tag: ${id}`);
+      const result = await this.tagsService.deleteTag(id);
+      this.logger.log(`Tag deleted successfully: ${id}`);
+      return result;
+    } catch (error) {
+      this.logger.error(`Error deleting tag ${id}:`, error);
+      throw error;
+    }
   }
 
   // =============================================================================

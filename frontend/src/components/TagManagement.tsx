@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import { TagDeleteConfirmationModal } from './TagDeleteConfirmationModal';
 
 // =============================================================================
 // TYPES AND INTERFACES
@@ -74,6 +75,11 @@ export const TagManagement: React.FC = () => {
   const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
   const [showBulkTagModal, setShowBulkTagModal] = useState(false);
   const [bulkTagId, setBulkTagId] = useState<string>('');
+  
+  // Delete confirmation modal
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [tagToDelete, setTagToDelete] = useState<Tag | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // =============================================================================
   // API CONFIGURATION
@@ -168,19 +174,41 @@ export const TagManagement: React.FC = () => {
     }
   };
 
-  const deleteTag = async (tagId: string) => {
-    if (!window.confirm('Are you sure you want to delete this tag?')) return;
+  const handleDeleteClick = (tag: Tag) => {
+    setTagToDelete(tag);
+    setShowDeleteModal(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!tagToDelete) return;
     
     try {
-      setLoading(true);
-      await api.delete(`/tags/${tagId}`);
+      setDeleteLoading(true);
+      await api.delete(`/tags/${tagToDelete.id}`);
       fetchTags();
       setError(null);
+      setShowDeleteModal(false);
+      setTagToDelete(null);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to delete tag');
+      const errorMessage = err.response?.data?.message || 'Failed to delete tag';
+      
+      // Extract contact count from error message
+      const contactCountMatch = errorMessage.match(/(\d+)\s+contact\(s\)/);
+      const contactCount = contactCountMatch ? parseInt(contactCountMatch[1]) : 0;
+      
+      // Update the tag with the correct contact count
+      setTagToDelete(prev => prev ? { ...prev, contactCount } : null);
+      
+      setError(errorMessage);
+      // Don't close the modal, let it show the updated count
     } finally {
-      setLoading(false);
+      setDeleteLoading(false);
     }
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteModal(false);
+    setTagToDelete(null);
   };
 
   const toggleTagStatus = async (tag: Tag) => {
@@ -301,7 +329,7 @@ export const TagManagement: React.FC = () => {
             Edit
           </button>
           <button
-            onClick={() => deleteTag(tag.id)}
+            onClick={() => handleDeleteClick(tag)}
             className="bg-red-100 text-red-800 px-3 py-1 rounded text-xs font-medium"
           >
             Delete
@@ -529,7 +557,7 @@ export const TagManagement: React.FC = () => {
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Tag Management</h1>
+              <h1 className="text-3xl font-bold text-gray-900">Tag History</h1>
               <p className="text-gray-600 mt-2">
                 Organize your contacts with custom tags for better categorization and management
               </p>
@@ -721,6 +749,16 @@ export const TagManagement: React.FC = () => {
       {showCreateModal && renderCreateTagModal()}
       {showEditModal && renderEditTagModal()}
       {showBulkTagModal && renderBulkTagModal()}
+      
+      {/* Delete Confirmation Modal */}
+      <TagDeleteConfirmationModal
+        isOpen={showDeleteModal}
+        onClose={handleDeleteCancel}
+        onConfirm={handleDeleteConfirm}
+        tagName={tagToDelete?.name || ''}
+        contactCount={tagToDelete?.contactCount || 0}
+        isLoading={deleteLoading}
+      />
     </div>
   );
 };

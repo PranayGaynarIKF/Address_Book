@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Tag, Edit, Trash2, Users, Search, Phone, Mail, Building2, Calendar } from 'lucide-react';
+import { TagDeleteConfirmationModal } from '../TagDeleteConfirmationModal';
 
 interface Contact {
   id: string;
@@ -13,30 +14,35 @@ interface Contact {
   updatedAt?: string;
 }
 
-interface Tag {
+interface TagType {
   id: string;
   name: string;
   color: string;
   description?: string;
+  isActive: boolean;
   createdAt?: string;
   contactCount?: number;
 }
 
 const TagManagement: React.FC = () => {
   // Tag management state
-  const [tags, setTags] = useState<Tag[]>([]);
+  const [tags, setTags] = useState<TagType[]>([]);
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState('#3B82F6');
   const [newTagDescription, setNewTagDescription] = useState('');
-  const [editingTag, setEditingTag] = useState<Tag | null>(null);
+  const [editingTag, setEditingTag] = useState<TagType | null>(null);
   const [isCreatingTag, setIsCreatingTag] = useState(false);
-  const [isDeletingTag, setIsDeletingTag] = useState(false);
 
   // Contact viewing state
-  const [selectedTag, setSelectedTag] = useState<Tag | null>(null);
+  const [selectedTag, setSelectedTag] = useState<TagType | null>(null);
   const [tagContacts, setTagContacts] = useState<Contact[]>([]);
   const [isLoadingContacts, setIsLoadingContacts] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Delete confirmation modal
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [tagToDelete, setTagToDelete] = useState<TagType | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const API_BASE = 'http://localhost:4002';
   const API_KEY = '9oAlpAhPvkKOGwuo6LiU8CPyRPxXSDoRVq1PFD0tkN';
@@ -109,7 +115,7 @@ const TagManagement: React.FC = () => {
     }
   };
 
-  const editTag = (tag: Tag) => {
+  const editTag = (tag: TagType) => {
     setEditingTag(tag);
     setNewTagName(tag.name);
     setNewTagColor(tag.color);
@@ -128,11 +134,12 @@ const TagManagement: React.FC = () => {
       const updatedTag = {
         name: newTagName.trim(),
         color: newTagColor,
-        description: newTagDescription.trim()
+        description: newTagDescription.trim(),
+        isActive: editingTag.isActive
       };
 
       const response = await fetch(`${API_BASE}/tags/${editingTag.id}`, {
-        method: 'PATCH',
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'X-API-Key': API_KEY
@@ -160,15 +167,18 @@ const TagManagement: React.FC = () => {
     }
   };
 
-  const deleteTag = async (tagId: string) => {
-    if (!window.confirm('❌ Are you sure you want to delete this tag? This action cannot be undone.')) {
-      return;
-    }
+  const handleDeleteClick = (tag: TagType) => {
+    setTagToDelete(tag);
+    setShowDeleteModal(true);
+  };
 
+  const handleDeleteConfirm = async () => {
+    if (!tagToDelete) return;
+    
     try {
-      setIsDeletingTag(true);
+      setDeleteLoading(true);
       
-      const response = await fetch(`${API_BASE}/tags/${tagId}`, {
+      const response = await fetch(`${API_BASE}/tags/${tagToDelete.id}`, {
         method: 'DELETE',
         headers: {
           'X-API-Key': API_KEY
@@ -176,22 +186,40 @@ const TagManagement: React.FC = () => {
       });
 
       if (response.ok) {
-        setTags(tags.filter(t => t.id !== tagId));
-        if (selectedTag?.id === tagId) {
+        setTags(tags.filter(t => t.id !== tagToDelete.id));
+        if (selectedTag?.id === tagToDelete.id) {
           setSelectedTag(null);
           setTagContacts([]);
         }
         alert('✅ Tag deleted successfully!');
+        setShowDeleteModal(false);
+        setTagToDelete(null);
       } else {
-        const error = await response.text();
-        alert(`❌ Failed to delete tag: ${error}`);
+        // Parse the error response to extract contact count
+        const errorData = await response.json();
+        const errorMessage = errorData.message || 'Failed to delete tag';
+        
+        // Extract contact count from error message
+        const contactCountMatch = errorMessage.match(/(\d+)\s+contact\(s\)/);
+        const contactCount = contactCountMatch ? parseInt(contactCountMatch[1]) : 0;
+        
+        // Update the tag with the correct contact count
+        setTagToDelete(prev => prev ? { ...prev, contactCount } : null);
+        
+        // Don't close the modal, let it show the updated count
+        return;
       }
     } catch (error) {
       console.error('❌ Error deleting tag:', error);
       alert(`❌ Error deleting tag: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
-      setIsDeletingTag(false);
+      setDeleteLoading(false);
     }
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteModal(false);
+    setTagToDelete(null);
   };
 
   const cancelEdit = () => {
@@ -201,7 +229,7 @@ const TagManagement: React.FC = () => {
     setNewTagDescription('');
   };
 
-  const viewTagContacts = async (tag: Tag) => {
+  const viewTagContacts = async (tag: TagType) => {
     try {
       setSelectedTag(tag);
       setIsLoadingContacts(true);
@@ -244,7 +272,7 @@ const TagManagement: React.FC = () => {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 flex items-center">
             <Tag className="h-8 w-8 mr-3 text-blue-600" />
-            Tag Management
+            Tag History
           </h1>
           <p className="mt-2 text-gray-600">
             Create, organize, and manage tags for your contacts. View all clients within each tag.
@@ -252,7 +280,7 @@ const TagManagement: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column - Tag Management */}
+          {/* Left Column - Tag History */}
           <div className="lg:col-span-1 space-y-6">
             {/* Create/Edit Tag Form */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -371,7 +399,7 @@ const TagManagement: React.FC = () => {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              deleteTag(tag.id);
+                              handleDeleteClick(tag);
                             }}
                             className="text-red-600 hover:text-red-700 hover:bg-red-100 p-1 rounded transition-colors"
                           >
@@ -521,6 +549,16 @@ const TagManagement: React.FC = () => {
           </div>
         </div>
       </div>
+      
+      {/* Delete Confirmation Modal */}
+      <TagDeleteConfirmationModal
+        isOpen={showDeleteModal}
+        onClose={handleDeleteCancel}
+        onConfirm={handleDeleteConfirm}
+        tagName={tagToDelete?.name || ''}
+        contactCount={tagToDelete?.contactCount || 0}
+        isLoading={deleteLoading}
+      />
     </div>
   );
 };

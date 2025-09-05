@@ -26,7 +26,6 @@ const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
-    'x-api-key': 'my-secret-api-key-123',
   },
 });
 
@@ -36,10 +35,48 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-  // Always include API key for backend authentication
-  config.headers['x-api-key'] = 'my-secret-api-key-123';
+  
+  // Include API key for all contact operations and ingestion
+  const needsApiKey = config.url?.includes('/ingestion/') || 
+                     config.url?.includes('/contacts');
+  
+  if (needsApiKey) {
+    config.headers['x-api-key'] = 'my-secret-api-key-123';
+  }
+  
+  // Debug logging for contact operations
+  if (config.url?.includes('/contacts')) {
+    console.log('🌐 Contact Request:', {
+      method: config.method?.toUpperCase(),
+      url: config.url,
+      headers: config.headers,
+      data: config.data
+    });
+  }
+  
   return config;
 });
+
+// Response interceptor to log responses and errors
+api.interceptors.response.use(
+  (response) => {
+    console.log('✅ API Response:', {
+      status: response.status,
+      url: response.config.url,
+      data: response.data
+    });
+    return response;
+  },
+  (error) => {
+    console.error('❌ API Error:', {
+      status: error.response?.status,
+      url: error.config?.url,
+      message: error.message,
+      data: error.response?.data
+    });
+    return Promise.reject(error);
+  }
+);
 
 // Auth API
 export const authAPI = {

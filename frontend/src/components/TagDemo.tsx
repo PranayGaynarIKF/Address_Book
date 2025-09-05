@@ -49,7 +49,7 @@ export const TagDemo: React.FC = () => {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="bg-white rounded-lg shadow-lg p-8 w-96">
           <h1 className="text-2xl font-bold text-gray-900 mb-6 text-center">
-            Tag Management System
+            Tag History System
           </h1>
           
           <div className="space-y-4">
@@ -92,7 +92,7 @@ export const TagDemo: React.FC = () => {
       <div className="bg-white border-b border-gray-200 px-6 py-3">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-semibold text-gray-900">
-            Contact Tag Management System
+            Contact Tag History System
           </h1>
           <div className="flex items-center space-x-4">
             <span className="text-sm text-gray-600">
@@ -108,7 +108,7 @@ export const TagDemo: React.FC = () => {
         </div>
       </div>
       
-      {/* Main Tag Management Component */}
+      {/* Main Tag History Component */}
       <TagManagement />
     </div>
   );

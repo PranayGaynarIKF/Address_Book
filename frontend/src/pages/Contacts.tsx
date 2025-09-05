@@ -1,32 +1,26 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { AxiosError } from 'axios';
 import { 
   Plus, 
   Search, 
-  Filter, 
   X, 
   Edit, 
   Trash2, 
   Tag,
-  ChevronDown,
   Users,
   FileText,
   Eye,
-  MoreVertical,
   Mail,
   Phone,
   Building,
-  MessageSquare,
   List,
   Grid3X3
 } from 'lucide-react';
 import { contactsAPI } from '../services/api';
-import { ContactResponseDto, CreateContactDto } from '../types';
+import { ContactResponseDto, CreateContactDto, UpdateContactDto } from '../types';
 import ContactModal from '../components/ContactModal';
-import { TagDemo } from '../components/TagDemo';
-import WhatsAppButton from '../components/WhatsApp/WhatsAppButton';
 import ContactList from '../components/ContactList/ContactList';
+import DeleteConfirmationModal from '../components/DeleteConfirmationModal';
 
 // =============================================================================
 // TYPES AND INTERFACES
@@ -58,7 +52,7 @@ if (typeof document !== 'undefined') {
   document.head.appendChild(styleElement);
 }
 
-interface Tag {
+interface TagType {
   id: string;
   name: string;
   color: string;
@@ -76,30 +70,24 @@ interface Tag {
 const Contacts: React.FC = () => {
   // API Configuration
   const API_BASE = 'http://localhost:4002';
-  const API_KEY = '9oAlpAhPvkKOGwuo6LiU8CPyRPxXSDoRVq1PFD0tkN';
   
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<ContactResponseDto | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedFilter, setSelectedFilter] = useState('all');
   const [selectedSourceSystem, setSelectedSourceSystem] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(15);
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   
   // Tag management state
-  const [tags, setTags] = useState<Tag[]>([]);
-  const [contactTags, setContactTags] = useState<Record<string, Tag[]>>({});
+  const [tags, setTags] = useState<TagType[]>([]);
+  const [contactTags, setContactTags] = useState<Record<string, TagType[]>>({});
   const [tagDropdownOpen, setTagDropdownOpen] = useState<Record<string, boolean>>({});
-  const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
-  const [bulkTagDropdownOpen, setBulkTagDropdownOpen] = useState(false);
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState('#3B82F6');
   const [isCreatingTag, setIsCreatingTag] = useState(false);
-  const [bulkTagSearchTerm, setBulkTagSearchTerm] = useState('');
   const [contactTagSearchTerm, setContactTagSearchTerm] = useState('');
-  const [isRemovingAllTags, setIsRemovingAllTags] = useState(false);
 
   const [loadingContactTags, setLoadingContactTags] = useState<Record<string, boolean>>({});
   const [tagsLoading, setTagsLoading] = useState(false);
@@ -107,6 +95,17 @@ const Contacts: React.FC = () => {
   
   // View mode state - grid (default) or list
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  
+  // Bulk selection state
+  const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
+  const [isSelectAll, setIsSelectAll] = useState(false);
+  const [bulkTagDropdownOpen, setBulkTagDropdownOpen] = useState(false);
+  const [bulkTagSearchTerm, setBulkTagSearchTerm] = useState('');
+  const [bulkTagLoading, setBulkTagLoading] = useState(false);
+  
+  // Delete confirmation modal state
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [contactToDelete, setContactToDelete] = useState<ContactResponseDto | null>(null);
 
   // Manual search function
   const handleSearch = () => {
@@ -124,7 +123,7 @@ const Contacts: React.FC = () => {
   // Reset page when search term changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearchTerm, selectedFilter, selectedSourceSystem]);
+  }, [debouncedSearchTerm, selectedSourceSystem]);
 
   // Load tags on component mount
   useEffect(() => {
@@ -179,7 +178,7 @@ const Contacts: React.FC = () => {
     }
   };
 
-  const fetchContactTags = async (contactId: string): Promise<Tag[]> => {
+  const fetchContactTags = async (contactId: string): Promise<TagType[]> => {
     try {
       const response = await fetch(`${API_BASE}/tags/contacts/${contactId}/tags`, {
         headers: {
@@ -299,276 +298,210 @@ const Contacts: React.FC = () => {
     }
   };
 
-  const applyTagToMultipleContacts = async (tagId: string) => {
-    console.log('🚀 ===== STARTING TAG APPLICATION =====');
-    console.log('🚀 applyTagToMultipleContacts function called with tagId:', tagId);
-    console.log('🚀 selectedContacts.size at function start:', selectedContacts.size);
-    console.log('🚀 selectedContacts at function start:', Array.from(selectedContacts));
-    console.log('🚀 API_BASE:', API_BASE);
-    console.log('🚀 Current contactTags state:', contactTags);
-    
-    if (selectedContacts.size === 0) {
-      console.log('🚀 No contacts selected, showing alert');
-      alert('Please select at least one contact to apply tags.');
-      return;
-    }
-    
-    console.log('🚀 Proceeding with tag application...');
-    
-    try {
-      // Use the bulk endpoint instead of individual calls
-      const requestBody = { contactIds: Array.from(selectedContacts) };
-      const requestUrl = `${API_BASE}/tags/${tagId}/contacts`;
-      
-      console.log('🚀 Applying tag to multiple contacts:', {
-        tagId,
-        selectedContacts: Array.from(selectedContacts),
-        requestUrl,
-        requestBody,
-        API_BASE
-      });
-      
-      console.log('🚀 Making API call to:', requestUrl);
-      console.log('🚀 Request body:', JSON.stringify(requestBody));
-      
-      const response = await fetch(requestUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'accept': '*/*'
-        },
-        body: JSON.stringify(requestBody)
-      });
-      
-      console.log('🚀 API Response:', {
-        status: response.status,
-        ok: response.ok,
-        statusText: response.statusText,
-        headers: Object.fromEntries(response.headers.entries()),
-        url: response.url
-      });
-      
-      // Log the response body before parsing
-      const responseText = await response.text();
-      console.log('🚀 Raw API Response Body:', responseText);
-      
-      if (!response.ok) {
-        console.error('🚀 API Error Response:', responseText);
-        console.error('🚀 Full error details:', {
-          status: response.status,
-          statusText: response.statusText,
-          url: response.url,
-          body: responseText
-        });
-        throw new Error(`HTTP ${response.status}: ${responseText}`);
-      }
-      
-      const result = JSON.parse(responseText);
-      console.log('🚀 ===== API RESPONSE RECEIVED =====');
-      console.log('🚀 API Success Response:', result);
-      console.log('🚀 Response success:', result.success);
-      console.log('🚀 Response count:', result.count);
-      
-      // Find the tag that was applied
-      const appliedTag = tags.find(tag => tag.id === tagId);
-      console.log('🚀 Applied tag found:', appliedTag);
-      console.log('🚀 Available tags:', tags);
-      
-      if (appliedTag) {
-        console.log('🚀 ===== UPDATING LOCAL STATE =====');
-        // Update local state for all selected contacts
-        setContactTags(prev => {
-          const updated = { ...prev };
-          console.log('🚀 Before update - contactTags state:', prev);
-          console.log('🚀 Selected contacts to update:', Array.from(selectedContacts));
-          console.log('🚀 Applied tag to add:', appliedTag);
-          
-          selectedContacts.forEach(contactId => {
-            console.log(`🚀 Processing contact ${contactId}:`);
-            if (!updated[contactId]) {
-              updated[contactId] = [];
-              console.log(`🚀 Initialized empty tags array for contact ${contactId}`);
-            }
-            // Check if tag is already applied to avoid duplicates
-            if (!updated[contactId].some(tag => tag.id === tagId)) {
-              updated[contactId] = [...updated[contactId], appliedTag];
-              console.log(`🚀 ✅ Added tag ${appliedTag.name} to contact ${contactId}. New tags:`, updated[contactId]);
-            } else {
-              console.log(`🚀 ⚠️ Tag ${appliedTag.name} already exists for contact ${contactId}`);
-            }
-          });
-          console.log('🚀 After update - contactTags state:', updated);
-          return updated;
-        });
-      } else {
-        console.log('🚀 ❌ Applied tag not found in tags array!');
-      }
-      
-      // Show success message
-      if (result.count > 0) {
-        alert(`✅ Successfully applied tag to ${result.count} contacts!`);
-      } else {
-        alert(`ℹ️ All selected contacts already have this tag applied.`);
-      }
-      
-      // Close the dropdown
-      setBulkTagDropdownOpen(false);
-      
-      // Refresh the contacts data to ensure consistency
-      queryClient.invalidateQueries({ queryKey: ['contacts'] });
-      
-      // Refresh contact tags for all selected contacts
-      console.log('🚀 ===== REFRESHING CONTACT TAGS =====');
-      console.log('🔄 Refreshing contact tags for selected contacts...');
-      console.log('🔄 Selected contacts to refresh:', Array.from(selectedContacts));
-      const refreshPromises = Array.from(selectedContacts).map(async (contactId) => {
-        try {
-          console.log(`🔄 Fetching tags for contact ${contactId}...`);
-          const tags = await fetchContactTags(contactId);
-          console.log(`🔄 Fetched tags for contact ${contactId}:`, tags);
-          setContactTags(prev => {
-            const updated = {
-              ...prev,
-              [contactId]: tags
-            };
-            console.log(`🔄 Updated contactTags state for ${contactId}:`, updated[contactId]);
-            return updated;
-          });
-          console.log(`✅ Refreshed tags for contact ${contactId}:`, tags);
-        } catch (error) {
-          console.error(`❌ Error refreshing tags for contact ${contactId}:`, error);
-        }
-      });
-      
-      await Promise.allSettled(refreshPromises);
-      console.log('✅ Contact tags refresh completed');
-      
-    } catch (error: any) {
-      console.log('🚀 ===== ERROR OCCURRED =====');
-      console.error('❌ Error applying tag to multiple contacts:', error);
-      console.error('❌ Full error object:', error);
-      console.error('❌ Error stack:', error?.stack);
-      console.error('❌ Error name:', error?.name);
-      alert(`Failed to apply tag: ${error?.message || 'Unknown error occurred'}`);
-    }
-    
-    console.log('🚀 ===== TAG APPLICATION COMPLETED =====');
-  };
-
-  const removeTagFromMultipleContacts = async (tagId: string, skipConfirmation = false) => {
-    if (selectedContacts.size === 0) return;
-    
-    if (!skipConfirmation) {
-      const confirmed = window.confirm(`Are you sure you want to remove this tag from ${selectedContacts.size} selected contacts?`);
-      if (!confirmed) return;
-    }
-    
-    try {
-      // Use the bulk endpoint instead of individual calls
-      const response = await fetch(`${API_BASE}/tags/${tagId}/contacts`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'accept': '*/*'
-        },
-        body: JSON.stringify({ contactIds: Array.from(selectedContacts) })
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
-      }
-      
-      const result = await response.json();
-      
-      // Update local state for all selected contacts
-      setContactTags(prev => {
-        const updated = { ...prev };
-        selectedContacts.forEach(contactId => {
-          if (updated[contactId]) {
-            updated[contactId] = updated[contactId].filter(tag => tag.id !== tagId);
-          }
-        });
-        return updated;
-      });
-      
-      // Show success message
-      if (result.count > 0) {
-        alert(`✅ Successfully removed tag from ${result.count} contacts!`);
-      } else {
-        alert(`ℹ️ None of the selected contacts had this tag applied.`);
-      }
-      
-      // Refresh the contacts data to ensure consistency
-      queryClient.invalidateQueries({ queryKey: ['contacts'] });
-      
-    } catch (error: any) {
-      console.error('Error removing tag from multiple contacts:', error);
-      alert(`Failed to remove tag: ${error?.message || 'Unknown error occurred'}`);
-    }
-  };
-
-  const removeAllTagsFromSelectedContacts = async () => {
-    if (selectedContacts.size === 0 || isRemovingAllTags) return;
-    
-    const confirmed = window.confirm(`Are you sure you want to remove ALL tags from ${selectedContacts.size} selected contacts? This action cannot be undone.`);
-    if (!confirmed) return;
-    
-    try {
-      setIsRemovingAllTags(true);
-      
-      // Update local state immediately for better UX
-      setContactTags(prev => {
-        const updated = { ...prev };
-        selectedContacts.forEach(contactId => {
-          updated[contactId] = [];
-        });
-        return updated;
-      });
-      
-      // Remove tags from backend for each contact
-      for (const contactId of Array.from(selectedContacts)) {
-        const contactTagsForContact = contactTags[contactId] || [];
-        for (const tag of contactTagsForContact) {
-          await removeTagFromContact(contactId, tag.id);
-        }
-      }
-      
-      alert(`✅ All tags removed from ${selectedContacts.size} contacts`);
-    } catch (error) {
-      console.error('Error removing all tags from contacts:', error);
-      alert('Failed to remove all tags. Please try again.');
-    } finally {
-      setIsRemovingAllTags(false);
-    }
-  };
-
-  const toggleContactSelection = (contactId: string) => {
+  // Bulk tag application functions
+  const handleSelectContact = (contactId: string) => {
     setSelectedContacts(prev => {
       const newSet = new Set(prev);
       if (newSet.has(contactId)) {
         newSet.delete(contactId);
-        console.log('🔍 Contact deselected:', contactId, 'Total selected:', newSet.size);
       } else {
         newSet.add(contactId);
-        console.log('🔍 Contact selected:', contactId, 'Total selected:', newSet.size);
       }
-      console.log('🔍 Updated selectedContacts:', Array.from(newSet));
       return newSet;
     });
   };
 
-  const selectAllContacts = () => {
-    if (!filteredContacts || filteredContacts.length === 0) {
-      console.log('🔄 No filtered contacts available for selectAllContacts');
-      return;
+  const handleSelectAll = () => {
+    if (isSelectAll) {
+      setSelectedContacts(new Set());
+      setIsSelectAll(false);
+    } else {
+      const allContactIds = new Set(filteredContacts.map(contact => contact.id));
+      setSelectedContacts(allContactIds);
+      setIsSelectAll(true);
     }
-    setSelectedContacts(new Set(filteredContacts.map(contact => contact.id)));
   };
 
-  const clearContactSelection = () => {
-    setSelectedContacts(new Set());
+  const applyBulkTag = async (tagId: string) => {
+    if (selectedContacts.size === 0) return;
+    
+    try {
+      setBulkTagLoading(true);
+      console.log('🔄 Applying bulk tag:', { tagId, contactCount: selectedContacts.size });
+      
+      const promises = Array.from(selectedContacts).map(async (contactId) => {
+        try {
+          const response = await fetch(`${API_BASE}/tags/contacts/${contactId}/tags/${tagId}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
+          
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          
+          // Refresh contact tags after applying
+          const contactTagsForContact = await fetchContactTags(contactId);
+          return { contactId, tags: contactTagsForContact };
+        } catch (error) {
+          console.error(`❌ Error applying tag to contact ${contactId}:`, error);
+          return { contactId, tags: [] };
+        }
+      });
+      
+      const results = await Promise.allSettled(promises);
+      
+      // Update contact tags for all contacts
+      const newContactTags: Record<string, TagType[]> = {};
+      results.forEach((result) => {
+        if (result.status === 'fulfilled') {
+          newContactTags[result.value.contactId] = result.value.tags;
+        }
+      });
+      
+      setContactTags((prev: Record<string, TagType[]>) => ({
+        ...prev,
+        ...newContactTags
+      }));
+      
+      // Clear selection
+      setSelectedContacts(new Set());
+      setIsSelectAll(false);
+      setBulkTagDropdownOpen(false);
+      
+      console.log(`✅ Bulk tag applied to ${selectedContacts.size} contacts`);
+    } catch (error) {
+      console.error('❌ Error applying bulk tag:', error);
+    } finally {
+      setBulkTagLoading(false);
+    }
   };
+
+  const removeBulkTag = async (tagId: string) => {
+    if (selectedContacts.size === 0) return;
+    
+    try {
+      setBulkTagLoading(true);
+      console.log('🔄 Removing bulk tag:', { tagId, contactCount: selectedContacts.size });
+      
+      const promises = Array.from(selectedContacts).map(async (contactId) => {
+        try {
+          const response = await fetch(`${API_BASE}/tags/contacts/${contactId}/tags/${tagId}`, {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
+          
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          
+          // Refresh contact tags after removing
+          const contactTagsForContact = await fetchContactTags(contactId);
+          return { contactId, tags: contactTagsForContact };
+        } catch (error) {
+          console.error(`❌ Error removing tag from contact ${contactId}:`, error);
+          return { contactId, tags: [] };
+        }
+      });
+      
+      const results = await Promise.allSettled(promises);
+      
+      // Update contact tags for all contacts
+      const newContactTags: Record<string, TagType[]> = {};
+      results.forEach((result) => {
+        if (result.status === 'fulfilled') {
+          newContactTags[result.value.contactId] = result.value.tags;
+        }
+      });
+      
+      setContactTags((prev: Record<string, TagType[]>) => ({
+        ...prev,
+        ...newContactTags
+      }));
+      
+      // Clear selection
+      setSelectedContacts(new Set());
+      setIsSelectAll(false);
+      setBulkTagDropdownOpen(false);
+      
+      console.log(`✅ Bulk tag removed from ${selectedContacts.size} contacts`);
+    } catch (error) {
+      console.error('❌ Error removing bulk tag:', error);
+    } finally {
+      setBulkTagLoading(false);
+    }
+  };
+
+  const removeAllBulkTags = async () => {
+    if (selectedContacts.size === 0) return;
+    
+    try {
+      setBulkTagLoading(true);
+      console.log('🔄 Removing all tags from bulk contacts:', { contactCount: selectedContacts.size });
+      
+      const promises = Array.from(selectedContacts).map(async (contactId) => {
+        try {
+          // First, get all tags for this contact
+          const contactTagsForContact = await fetchContactTags(contactId);
+          
+          // Remove each tag from the contact
+          const removePromises = contactTagsForContact.map(async (tag) => {
+            const response = await fetch(`${API_BASE}/tags/contacts/${contactId}/tags/${tag.id}`, {
+              method: 'DELETE',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            });
+            
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
+          });
+          
+          await Promise.allSettled(removePromises);
+          
+          // Return empty tags array since all tags were removed
+          return { contactId, tags: [] };
+        } catch (error) {
+          console.error(`❌ Error removing all tags from contact ${contactId}:`, error);
+          return { contactId, tags: [] };
+        }
+      });
+      
+      const results = await Promise.allSettled(promises);
+      
+      // Update contact tags for all contacts (all will be empty)
+      const newContactTags: Record<string, TagType[]> = {};
+      results.forEach((result) => {
+        if (result.status === 'fulfilled') {
+          newContactTags[result.value.contactId] = result.value.tags;
+        }
+      });
+      
+      setContactTags((prev: Record<string, TagType[]>) => ({
+        ...prev,
+        ...newContactTags
+      }));
+      
+      // Clear selection
+      setSelectedContacts(new Set());
+      setIsSelectAll(false);
+      setBulkTagDropdownOpen(false);
+      
+      console.log(`✅ All tags removed from ${selectedContacts.size} contacts`);
+    } catch (error) {
+      console.error('❌ Error removing all bulk tags:', error);
+    } finally {
+      setBulkTagLoading(false);
+    }
+  };
+
+
+
 
   // Listen for contacts updated event from clean and merge
   useEffect(() => {
@@ -582,8 +515,8 @@ const Contacts: React.FC = () => {
   }, [queryClient]);
 
   // Optimized contacts query with better caching
-  const { data: contacts, isLoading, error, isFetching } = useQuery({
-    queryKey: ['contacts', currentPage, pageSize, debouncedSearchTerm, selectedFilter, selectedSourceSystem],
+  const { data: contacts, isLoading } = useQuery({
+    queryKey: ['contacts', currentPage, pageSize, debouncedSearchTerm, selectedSourceSystem],
     queryFn: () => {
       const params: any = { page: currentPage, limit: pageSize };
       
@@ -629,13 +562,9 @@ const Contacts: React.FC = () => {
       filtered = filtered.filter(contact => contact.sourceSystem === selectedSourceSystem);
     }
     
-    // Apply relationship type filter
-    if (selectedFilter !== 'all') {
-      filtered = filtered.filter(contact => contact.relationshipType === selectedFilter);
-    }
 
     return filtered;
-  }, [contacts?.data?.data, debouncedSearchTerm, selectedSourceSystem, selectedFilter, contactTags]);
+  }, [contacts?.data?.data, debouncedSearchTerm, selectedSourceSystem]);
 
   const loadTagsForContact = useCallback(async (contactId: string) => {
     if (contactTags[contactId]) {
@@ -663,15 +592,6 @@ const Contacts: React.FC = () => {
     }
   }, [contactTags]);
 
-  // Debug dropdown state
-  useEffect(() => {
-    if (bulkTagDropdownOpen) {
-      console.log('🔍 Dropdown opened, tags available:', tags.length);
-      console.log('🔍 Filtered tags:', tags.filter(tag => 
-        tag.name.toLowerCase().includes(bulkTagSearchTerm.toLowerCase())
-      ));
-    }
-  }, [bulkTagDropdownOpen, tags, bulkTagSearchTerm]);
 
   // Auto-load tags for all contacts when contacts data changes
   useEffect(() => {
@@ -695,14 +615,14 @@ const Contacts: React.FC = () => {
         
         const results = await Promise.allSettled(promises);
         
-        const newContactTags: Record<string, Tag[]> = {};
+        const newContactTags: Record<string, TagType[]> = {};
         results.forEach((result) => {
           if (result.status === 'fulfilled') {
             newContactTags[result.value.contactId] = result.value.tags;
           }
         });
         
-        setContactTags((prev: Record<string, Tag[]>) => ({
+        setContactTags((prev: Record<string, TagType[]>) => ({
           ...prev,
           ...newContactTags
         }));
@@ -718,7 +638,7 @@ const Contacts: React.FC = () => {
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Element;
-      if (!target.closest('.tag-dropdown-container')) {
+      if (!target.closest('.tag-dropdown-container') && !target.closest('.bulk-tag-dropdown-container')) {
         setTagDropdownOpen({});
         setBulkTagDropdownOpen(false);
       }
@@ -729,20 +649,63 @@ const Contacts: React.FC = () => {
   }, []);
 
   const createMutation = useMutation({
-    mutationFn: contactsAPI.create,
-    onSuccess: () => {
+    mutationFn: (data: CreateContactDto) => {
+      console.log('🔄 Creating contact:', data);
+      console.log('🔄 API URL will be:', `${process.env.REACT_APP_API_URL || 'http://localhost:4002'}/contacts`);
+      console.log('🔄 Request method: POST');
+      return contactsAPI.create(data);
+    },
+    onSuccess: (response) => {
+      console.log('✅ Contact created successfully:', response);
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
       setIsModalOpen(false);
+    },
+    onError: (error: any) => {
+      console.error('❌ Contact creation failed:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        request: {
+          url: error.config?.url,
+          method: error.config?.method,
+          headers: error.config?.headers,
+          data: error.config?.data
+        }
+      });
+      console.error('❌ Full error object:', error);
     },
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: CreateContactDto }) =>
-      contactsAPI.update(id, data),
-    onSuccess: () => {
+    mutationFn: ({ id, data }: { id: string; data: UpdateContactDto }) => {
+      console.log('🔄 Updating contact:', { id, data });
+      console.log('🔄 API URL will be:', `${process.env.REACT_APP_API_URL || 'http://localhost:4002'}/contacts/${id}`);
+      console.log('🔄 Request method: PATCH');
+      return contactsAPI.update(id, data);
+    },
+    onSuccess: (response) => {
+      console.log('✅ Contact updated successfully:', response);
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
       setIsModalOpen(false);
       setEditingContact(null);
+    },
+    onError: (error: any) => {
+      console.error('❌ Contact update failed:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        request: {
+          url: error.config?.url,
+          method: error.config?.method,
+          headers: error.config?.headers,
+          data: error.config?.data
+        }
+      });
+      console.error('❌ Full error object:', error);
     },
   });
 
@@ -758,20 +721,28 @@ const Contacts: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    if (window.confirm('Are you sure you want to delete this contact?')) {
-      deleteMutation.mutate(id);
+  const handleDelete = (contact: ContactResponseDto) => {
+    setContactToDelete(contact);
+    setDeleteModalOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (contactToDelete) {
+      deleteMutation.mutate(contactToDelete.id);
+      setDeleteModalOpen(false);
+      setContactToDelete(null);
     }
+  };
+
+  const cancelDelete = () => {
+    setDeleteModalOpen(false);
+    setContactToDelete(null);
   };
 
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
-  const getStatusColor = (contact: ContactResponseDto) => {
-    if (contact.companyName) return 'bg-blue-100 text-blue-800';
-    return 'bg-green-100 text-green-800';
-  };
 
   return (
     <div className="space-y-6 animate-fade-in-up">
@@ -863,6 +834,105 @@ const Contacts: React.FC = () => {
                   </button>
                 </div>
                 
+                {/* Bulk Tag Controls - Only show in Grid View */}
+                {viewMode === 'grid' && selectedContacts.size > 0 && (
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm text-gray-600 font-medium">
+                      {selectedContacts.size} selected
+                    </span>
+                    <div className="relative bulk-tag-dropdown-container">
+                      <button
+                        onClick={() => setBulkTagDropdownOpen(!bulkTagDropdownOpen)}
+                        disabled={bulkTagLoading}
+                        className="btn-secondary flex items-center space-x-2 px-4 py-2 disabled:opacity-50"
+                      >
+                        <Tag className="h-4 w-4" />
+                        <span>Apply Tag</span>
+                      </button>
+                      
+                      {/* Bulk Tag Dropdown */}
+                      {bulkTagDropdownOpen && (
+                        <div className="absolute z-50 right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-xl ring-1 ring-black ring-opacity-5">
+                          <div className="p-4">
+                            <div className="flex items-center justify-between mb-4">
+                              <h5 className="font-semibold text-gray-900">Apply Tag to {selectedContacts.size} Contacts</h5>
+                              <button
+                                onClick={() => setBulkTagDropdownOpen(false)}
+                                className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                            
+                            <div className="mb-4">
+                              <input
+                                type="text"
+                                placeholder="Search tags..."
+                                value={bulkTagSearchTerm}
+                                onChange={(e) => setBulkTagSearchTerm(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                              />
+                            </div>
+                            
+                            <div className="max-h-48 overflow-y-auto space-y-2 mb-4">
+                              {tags.filter(tag => 
+                                tag.name.toLowerCase().includes(bulkTagSearchTerm.toLowerCase())
+                              ).map((tag) => (
+                                <div key={tag.id} className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg">
+                                  <div className="flex items-center space-x-3">
+                                    <div
+                                      className="w-4 h-4 rounded-full border border-gray-200"
+                                      style={{ backgroundColor: tag.color }}
+                                    />
+                                    <span className="text-sm font-medium text-gray-700">{tag.name}</span>
+                                  </div>
+                                  <div className="flex space-x-2">
+                                    <button
+                                      onClick={() => applyBulkTag(tag.id)}
+                                      disabled={bulkTagLoading}
+                                      className="text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 px-3 py-1.5 rounded-md transition-colors font-medium disabled:opacity-50"
+                                    >
+                                      {bulkTagLoading ? 'Applying...' : 'Apply'}
+                                    </button>
+                                    <button
+                                      onClick={() => removeBulkTag(tag.id)}
+                                      disabled={bulkTagLoading}
+                                      className="text-xs bg-red-100 text-red-700 hover:bg-red-200 px-3 py-1.5 rounded-md transition-colors font-medium disabled:opacity-50"
+                                    >
+                                      Remove
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            
+                            {/* Remove All Tags Button */}
+                            <div className="pt-4 border-t border-gray-200">
+                              <button
+                                onClick={removeAllBulkTags}
+                                disabled={bulkTagLoading}
+                                className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <X className="h-4 w-4" />
+                                <span>{bulkTagLoading ? 'Removing All Tags...' : 'Remove All Tags'}</span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => {
+                        setSelectedContacts(new Set());
+                        setIsSelectAll(false);
+                      }}
+                      className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2 hover:bg-gray-100 rounded-lg transition-colors"
+                    >
+                      Clear Selection
+                    </button>
+                  </div>
+                )}
+                
                 <button
                   onClick={() => setIsModalOpen(true)}
                   className="btn-primary flex items-center justify-center space-x-2 px-6 py-3"
@@ -878,6 +948,7 @@ const Contacts: React.FC = () => {
           {viewMode === 'grid' && (
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+              {/* Search */}
               <div className="lg:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Search Contacts
@@ -887,7 +958,7 @@ const Contacts: React.FC = () => {
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                     <input
                       type="text"
-                      placeholder="Search by name, email, or company..."
+                      placeholder="Search by name, email, mobile, or company..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
@@ -910,8 +981,9 @@ const Contacts: React.FC = () => {
                     </button>
                   )}
                 </div>
-              </div>           
-              
+              </div>
+
+              {/* Source System Filter */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Source System
@@ -919,221 +991,77 @@ const Contacts: React.FC = () => {
                 <select
                   value={selectedSourceSystem}
                   onChange={(e) => setSelectedSourceSystem(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200"
+                  className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200"
                 >
                   <option value="all">All Sources</option>
                   <option value="MOBILE">Mobile</option>
                   <option value="GMAIL">Gmail</option>
-                  <option value="ZOHO">Zoho</option>
                   <option value="INVOICE">Invoice</option>
-                  <option value="ASHISH">Ashish</option>
+                </select>
+              </div>
+              
+              {/* Page Size Selector */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Page Size
+                </label>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1); // Reset to first page
+                  }}
+                  className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200"
+                >
+                  <option value={6}>6 per page</option>
+                  <option value={12}>12 per page</option>
+                  <option value={18}>18 per page</option>
+                  <option value={24}>24 per page</option>
+                  <option value={30}>30 per page</option>
                 </select>
               </div>
             </div>
           </div>)}
 
-          {/* Bulk Tag Management Section */}
-          {selectedContacts.size > 0 && (
-            <div className="bg-blue-50 border-2 border-blue-200 rounded-xl shadow-lg p-6 mb-6 sticky top-4 z-10" style={{ overflow: 'visible' }}>
-              <div className="mb-4">
-                <h3 className="text-lg font-semibold text-blue-800 flex items-center">
-                  <Tag className="h-5 w-5 mr-2" />
-                  Bulk Tag Operations
-                </h3>
-                <p className="text-sm text-blue-600 mt-1">
-                  Apply or remove tags from all selected contacts at once
-                </p>
-              </div>
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div className="flex items-center space-x-3">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sm font-medium text-gray-700">
-                      {selectedContacts.size} contact{selectedContacts.size !== 1 ? 's' : ''} selected
-                    </span>
-                    <button
-                      onClick={clearContactSelection}
-                      className="text-xs text-gray-500 hover:text-gray-700 underline"
-                    >
-                      Clear Selection
-                    </button>
-                  </div>
-                </div>
-                
-                <div className="flex items-center space-x-3">
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      console.log('🔍 Apply Tags button clicked');
-                      console.log('🔍 Current selectedContacts:', Array.from(selectedContacts));
-                      console.log('🔍 selectedContacts.size:', selectedContacts.size);
-                      console.log('🔍 Current bulkTagDropdownOpen:', bulkTagDropdownOpen);
-                      console.log('🔍 Setting bulkTagDropdownOpen to:', !bulkTagDropdownOpen);
-                      setBulkTagDropdownOpen(!bulkTagDropdownOpen);
-                    }}
-                    className="btn-primary text-sm"
-                  >
-                    Apply Tags
-                  </button>
-                  <button
-                    onClick={removeAllTagsFromSelectedContacts}
-                    disabled={isRemovingAllTags}
-                    className="btn-secondary text-sm disabled:opacity-50"
-                  >
-                    {isRemovingAllTags ? 'Removing...' : 'Remove All Tags'}
-                  </button>
-                </div>
-              </div>
-              
-              {/* Bulk Tag Dropdown */}
-              {bulkTagDropdownOpen && (
-                <div 
-                  className="bg-white border-2 border-blue-300 rounded-lg p-4 mt-4 shadow-xl"
-                  style={{ 
-                    position: 'relative',
-                    zIndex: 50,
-                    pointerEvents: 'auto',
-                    maxHeight: '400px',
-                    overflow: 'visible'
-                  }}
-                >
-                  <div className="flex justify-between items-center mb-3">
-                    <h4 className="text-lg font-semibold text-gray-800">Select Tag to Apply</h4>
-                    <button
-                      onClick={() => setBulkTagDropdownOpen(false)}
-                      className="text-gray-500 hover:text-gray-700 text-xl font-bold"
-                    >
-                      ×
-                    </button>
-                  </div>
 
-                  <div className="mb-3">
-                    <input
-                      type="text"
-                      placeholder="Search tags..."
-                      value={bulkTagSearchTerm}
-                      onChange={(e) => setBulkTagSearchTerm(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200 text-sm"
-                    />
-                  </div>
-                  
-                  <div className="max-h-60 overflow-y-auto space-y-2 mb-3">
-                    <div className="text-sm text-gray-600 mb-2 font-medium">
-                      Available Tags ({tags.filter(tag => 
-                        tag.name.toLowerCase().includes(bulkTagSearchTerm.toLowerCase())
-                      ).length}):
-                    </div>
-                    {tags.filter(tag => 
-                      tag.name.toLowerCase().includes(bulkTagSearchTerm.toLowerCase())
-                    ).map((tag) => (
-                      <div key={tag.id} className="flex items-center justify-between p-2 hover:bg-gray-100 rounded">
-                        <div className="flex items-center space-x-2">
-                          <div
-                            className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: tag.color }}
-                          />
-                          <span className="text-sm text-gray-700">{tag.name}</span>
-                        </div>
-                        <button
-                          onClick={async (e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            console.log('🚀 ===== TAG BUTTON CLICKED =====');
-                            console.log('🚀 Apply to All button clicked for tag:', tag.id, tag.name);
-                            console.log('🚀 Current selectedContacts:', Array.from(selectedContacts));
-                            console.log('🚀 selectedContacts.size:', selectedContacts.size);
-                            console.log('🚀 About to call applyTagToMultipleContacts with tagId:', tag.id);
-                            console.log('🚀 Current contactTags state before call:', contactTags);
-                            
-                            // Show loading state
-                            console.log('🚀 Starting tag application...');
-                            
-                            try {
-                              console.log('🚀 Calling applyTagToMultipleContacts...');
-                              await applyTagToMultipleContacts(tag.id);
-                              console.log('🚀 applyTagToMultipleContacts call completed successfully');
-                              console.log('🚀 Final contactTags state after call:', contactTags);
-                            } catch (error) {
-                              console.log('🚀 ===== ERROR IN BUTTON CLICK =====');
-                              console.error('🚀 Error calling applyTagToMultipleContacts:', error);
-                              console.error('🚀 Error details:', error);
-                            }
-                          }}
-                          className="text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 px-3 py-1 rounded transition-colors cursor-pointer relative z-10"
-                          style={{ 
-                            pointerEvents: 'auto',
-                            position: 'relative',
-                            zIndex: 10,
-                            border: '2px solid red' // Temporary visual debugging
-                          }}
-                        >
-                          Apply to All
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Contacts Selection Controls - Only show in Grid View */}
-          {viewMode === 'grid' && filteredContacts.length > 0 && (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <span className="text-sm text-gray-600">
-                    {selectedContacts.size} of {filteredContacts?.length || 0} contacts selected
-                  </span>
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        console.log('🔄 Select All button clicked');
-                        console.log('🔄 Current selectedContacts.size:', selectedContacts.size);
-                        console.log('🔄 filteredContacts:', filteredContacts);
-                        console.log('🔄 filteredContacts.length:', filteredContacts?.length || 0);
-                        
-                        if (!filteredContacts || filteredContacts.length === 0) {
-                          console.log('🔄 No filtered contacts available');
-                          return;
-                        }
-                        
-                        if (selectedContacts.size === filteredContacts.length) {
-                          // If all are selected, deselect all
-                          console.log('🔄 Deselecting all contacts');
-                          setSelectedContacts(new Set());
-                        } else {
-                          // If not all are selected, select all
-                          console.log('🔄 Selecting all contacts');
-                          const allContactIds = new Set(filteredContacts.map(c => c.id));
-                          console.log('🔄 All contact IDs:', Array.from(allContactIds));
-                          setSelectedContacts(allContactIds);
-                        }
-                      }}
-                      className="text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 px-3 py-1.5 rounded-md transition-colors font-medium"
-                    >
-                      {selectedContacts.size === (filteredContacts?.length || 0) ? 'Deselect All' : 'Select All'}
-                    </button>
-                  </div>
-                </div>
-                
-                {selectedContacts.size > 0 && (
-                  <button
-                    onClick={() => setSelectedContacts(new Set())}
-                    className="text-xs text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded transition-colors"
-                  >
-                    Clear Selection
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
 
           {/* Contacts Content - Grid or List View */}
           {viewMode === 'grid' ? (
             <>
+              {/* Select All Controls */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isSelectAll}
+                        onChange={handleSelectAll}
+                        className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                      />
+                      <span className="text-sm font-medium text-gray-700">
+                        Select All ({filteredContacts.length} contacts)
+                      </span>
+                    </label>
+                  </div>
+                  
+                  {selectedContacts.size > 0 && (
+                    <div className="flex items-center space-x-2 text-sm text-gray-600">
+                      <span className="font-medium">{selectedContacts.size} selected</span>
+                      <button
+                        onClick={() => {
+                          setSelectedContacts(new Set());
+                          setIsSelectAll(false);
+                        }}
+                        className="text-primary-600 hover:text-primary-700 font-medium"
+                      >
+                        Clear Selection
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
               {/* Contacts Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredContacts.map((contact, index) => (
@@ -1157,19 +1085,15 @@ const Contacts: React.FC = () => {
                   {/* Contact Selection and Header */}
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center space-x-3">
-                      <div className="relative z-50">
+                      {/* Selection Checkbox */}
+                      <label className="flex items-center cursor-pointer">
                         <input
                           type="checkbox"
                           checked={selectedContacts.has(contact.id)}
-                          onChange={(e) => {
-                            console.log('🔍 Checkbox clicked for contact:', contact.id, contact.name);
-                            console.log('🔍 Checkbox event:', e);
-                            console.log('🔍 Checkbox checked state:', e.target.checked);
-                            toggleContactSelection(contact.id);
-                          }}
-                          className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded cursor-pointer"
+                          onChange={() => handleSelectContact(contact.id)}
+                          className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
                         />
-                      </div>
+                      </label>
                       
                       <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full flex items-center justify-center text-white font-semibold text-lg group-hover:scale-110 transition-transform duration-200">
                         {getInitials(contact.name)}
@@ -1184,26 +1108,30 @@ const Contacts: React.FC = () => {
                           <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
                             contact.sourceSystem === 'MOBILE' ? 'bg-green-100 text-green-800' :
                             contact.sourceSystem === 'GMAIL' ? 'bg-blue-100 text-blue-800' :
-                            contact.sourceSystem === 'ZOHO' ? 'bg-purple-100 text-purple-800' :
                             contact.sourceSystem === 'INVOICE' ? 'bg-orange-100 text-orange-800' :
-                            contact.sourceSystem === 'ASHISH' ? 'bg-indigo-100 text-indigo-800' :
                             'bg-gray-100 text-gray-800'
                           }`}>
                             {contact.sourceSystem}
                           </span>
                           
-                          {selectedContacts.has(contact.id) && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                              Selected
-                            </span>
-                          )}
                         </div>
                       </div>
                     </div>
                     
-                    <div className="relative">
-                      <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors duration-200 opacity-0 group-hover:opacity-100">
-                        <MoreVertical className="h-4 w-4 text-gray-500" />
+                    <div className="flex space-x-1">
+                      <button
+                        onClick={() => handleEdit(contact)}
+                        className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-all duration-200 hover:scale-110"
+                        title="Edit Contact"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(contact)}
+                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200 hover:scale-110"
+                        title="Delete Contact"
+                      >
+                        <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
                   </div>
@@ -1476,26 +1404,6 @@ const Contacts: React.FC = () => {
                     )}
                   </div>
 
-                  {/* Actions */}
-                  <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-100">
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => handleEdit(contact)}
-                        className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-all duration-200 hover:scale-110"
-                        title="Edit Contact"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(contact.id)}
-                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200 hover:scale-110"
-                        title="Delete Contact"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                    
-                  </div>
                 </div>
               </div>
             ))}
@@ -1698,18 +1606,13 @@ const Contacts: React.FC = () => {
               </div>
               
               {/* Active Filters Summary */}
-              {(selectedSourceSystem !== 'all' || selectedFilter !== 'all') && (
+              {selectedSourceSystem !== 'all' && (
                 <div className="mt-3 pt-3 border-t border-gray-200">
                   <div className="flex items-center space-x-4 text-sm text-gray-600">
                     <span className="font-medium">Active Filters:</span>
                     {selectedSourceSystem !== 'all' && (
                       <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
                         Source: {selectedSourceSystem}
-                      </span>
-                    )}
-                    {selectedFilter !== 'all' && (
-                      <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
-                        Type: {selectedFilter}
                       </span>
                     )}
                   </div>
@@ -1726,12 +1629,12 @@ const Contacts: React.FC = () => {
               </div>
               <h3 className="text-lg font-medium text-gray-900 mb-2">No contacts found</h3>
               <p className="text-gray-500 mb-6">
-                {debouncedSearchTerm || selectedFilter !== 'all' 
+                {debouncedSearchTerm 
                   ? 'Try adjusting your search or filters'
                   : 'Get started by adding your first contact'
                 }
               </p>
-              {!debouncedSearchTerm && selectedFilter === 'all' && (
+              {!debouncedSearchTerm && (
                 <button
                   onClick={() => setIsModalOpen(true)}
                   className="btn-primary"
@@ -1745,7 +1648,95 @@ const Contacts: React.FC = () => {
             </>
           ) : (
             /* List View - ContactList Component */
-            <ContactList hideHeading={true} />
+            <ContactList 
+              hideHeading={true} 
+              onBulkTagApply={async (contactIds: string[], tagId: string) => {
+                // Apply tag to multiple contacts
+                const promises = contactIds.map(async (contactId) => {
+                  try {
+                    const response = await fetch(`${API_BASE}/tags/contacts/${contactId}/tags/${tagId}`, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                    });
+                    
+                    if (!response.ok) {
+                      throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    return { contactId, success: true };
+                  } catch (error) {
+                    console.error(`❌ Error applying tag to contact ${contactId}:`, error);
+                    return { contactId, success: false };
+                  }
+                });
+                
+                await Promise.allSettled(promises);
+                
+                // Refresh contact tags for all contacts
+                const refreshPromises = contactIds.map(async (contactId) => {
+                  const tags = await fetchContactTags(contactId);
+                  return { contactId, tags };
+                });
+                
+                const results = await Promise.allSettled(refreshPromises);
+                const newContactTags: Record<string, TagType[]> = {};
+                results.forEach((result) => {
+                  if (result.status === 'fulfilled') {
+                    newContactTags[result.value.contactId] = result.value.tags;
+                  }
+                });
+                
+                setContactTags((prev: Record<string, TagType[]>) => ({
+                  ...prev,
+                  ...newContactTags
+                }));
+              }}
+              onBulkTagRemove={async (contactIds: string[], tagId: string) => {
+                // Remove tag from multiple contacts
+                const promises = contactIds.map(async (contactId) => {
+                  try {
+                    const response = await fetch(`${API_BASE}/tags/contacts/${contactId}/tags/${tagId}`, {
+                      method: 'DELETE',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                    });
+                    
+                    if (!response.ok) {
+                      throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    return { contactId, success: true };
+                  } catch (error) {
+                    console.error(`❌ Error removing tag from contact ${contactId}:`, error);
+                    return { contactId, success: false };
+                  }
+                });
+                
+                await Promise.allSettled(promises);
+                
+                // Refresh contact tags for all contacts
+                const refreshPromises = contactIds.map(async (contactId) => {
+                  const tags = await fetchContactTags(contactId);
+                  return { contactId, tags };
+                });
+                
+                const results = await Promise.allSettled(refreshPromises);
+                const newContactTags: Record<string, TagType[]> = {};
+                results.forEach((result) => {
+                  if (result.status === 'fulfilled') {
+                    newContactTags[result.value.contactId] = result.value.tags;
+                  }
+                });
+                
+                setContactTags((prev: Record<string, TagType[]>) => ({
+                  ...prev,
+                  ...newContactTags
+                }));
+              }}
+            />
           )}
         </>
       )}
@@ -1760,12 +1751,29 @@ const Contacts: React.FC = () => {
         contact={editingContact}
         onSubmit={(data) => {
           if (editingContact) {
-            updateMutation.mutate({ id: editingContact.id, data });
+            updateMutation.mutate({ id: editingContact.id, data: data as UpdateContactDto });
           } else {
-            createMutation.mutate(data);
+            createMutation.mutate(data as CreateContactDto);
           }
         }}
         isLoading={createMutation.isPending || updateMutation.isPending}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={deleteModalOpen}
+        onClose={cancelDelete}
+        onConfirm={confirmDelete}
+        title="Delete Contact"
+        message="Are you sure you want to delete this contact? This action cannot be undone."
+        itemType="contact"
+        itemDetails={contactToDelete ? {
+          name: contactToDelete.name,
+          email: contactToDelete.email,
+          company: contactToDelete.companyName,
+          phone: contactToDelete.mobileE164
+        } : undefined}
+        isLoading={deleteMutation.isPending}
       />
     </div>
   );

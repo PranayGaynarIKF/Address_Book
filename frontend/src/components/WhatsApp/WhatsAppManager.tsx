@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   MessageSquare, 
   Send, 
@@ -11,13 +11,11 @@ import {
   Clock, 
   AlertCircle,
   Plus,
-  Trash2,
   Search,
-  Filter,
-  Download,
   RefreshCw,
   Tag
 } from 'lucide-react';
+import { TagDeleteConfirmationModal } from '../TagDeleteConfirmationModal';
 
 interface Contact {
   id: string;
@@ -28,11 +26,21 @@ interface Contact {
   sourceSystem: string;
 }
 
-interface Tag {
+interface TagType {
   id: string;
   name: string;
   color: string;
   description?: string;
+  isActive: boolean;
+  contactCount?: number;
+}
+
+interface ApiTag {
+  id: string;
+  name: string;
+  color: string;
+  description?: string;
+  isActive?: boolean;
 }
 
 interface WhatsAppMessage {
@@ -60,7 +68,7 @@ interface WhatsAppStats {
 const WhatsAppManager: React.FC = () => {
   // State management
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [tags, setTags] = useState<Tag[]>([]);
+  const [tags, setTags] = useState<TagType[]>([]);
   const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
   const [message, setMessage] = useState('');
@@ -82,9 +90,13 @@ const WhatsAppManager: React.FC = () => {
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState('#3B82F6');
   const [newTagDescription, setNewTagDescription] = useState('');
-  const [editingTag, setEditingTag] = useState<Tag | null>(null);
+  const [editingTag, setEditingTag] = useState<TagType | null>(null);
   const [isCreatingTag, setIsCreatingTag] = useState(false);
-  const [isDeletingTag, setIsDeletingTag] = useState(false);
+  
+  // Delete confirmation modal
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [tagToDelete, setTagToDelete] = useState<TagType | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   console.log('🎯 WhatsAppManager component rendering!');
   console.log('🎯 Component state - tags:', tags.length, 'selectedTags:', selectedTags.size);
@@ -167,7 +179,13 @@ const WhatsAppManager: React.FC = () => {
         console.log('✅ Final tags array:', tagsArray);
         console.log('✅ Tags array length:', tagsArray.length);
         
-        setTags(tagsArray);
+        // Ensure all tags have required fields including isActive
+        const mappedTags: TagType[] = tagsArray.map((tag: ApiTag) => ({
+          ...tag,
+          isActive: tag.isActive !== undefined ? tag.isActive : true
+        }));
+        
+        setTags(mappedTags);
         console.log('📝 Tags state updated with:', tagsArray);
         
         // If no tags found, show a message
@@ -182,8 +200,8 @@ const WhatsAppManager: React.FC = () => {
         // Fallback: Set some test tags so UI shows something
         console.log('🔄 Setting fallback test tags for UI testing');
         const fallbackTags = [
-          { id: 'test1', name: 'Test Tag 1', color: '#FF0000', description: 'Test tag for UI' },
-          { id: 'test2', name: 'Test Tag 2', color: '#00FF00', description: 'Another test tag' }
+          { id: 'test1', name: 'Test Tag 1', color: '#FF0000', description: 'Test tag for UI', isActive: true },
+          { id: 'test2', name: 'Test Tag 2', color: '#00FF00', description: 'Another test tag', isActive: true }
         ];
         setTags(fallbackTags);
       }
@@ -202,8 +220,8 @@ const WhatsAppManager: React.FC = () => {
       // Fallback: Set test tags even on network errors
       console.log('🔄 Setting fallback test tags due to network error');
       const fallbackTags = [
-        { id: 'fallback1', name: 'Fallback Tag 1', color: '#FF0000', description: 'Fallback tag' },
-        { id: 'fallback2', name: 'Fallback Tag 2', color: '#00FF00', description: 'Another fallback' }
+        { id: 'fallback1', name: 'Fallback Tag 1', color: '#FF0000', description: 'Fallback tag', isActive: true },
+        { id: 'fallback2', name: 'Fallback Tag 2', color: '#00FF00', description: 'Another fallback', isActive: true }
       ];
       setTags(fallbackTags);
     }
@@ -238,7 +256,7 @@ const WhatsAppManager: React.FC = () => {
   // Update tag contacts count when tag selection changes
   useEffect(() => {
     getTagContactsCount(Array.from(selectedTags));
-  }, [selectedTags]);
+  }, [selectedTags, tags]);
 
   // Debug effect to monitor tags state changes
   useEffect(() => {
@@ -790,11 +808,12 @@ const WhatsAppManager: React.FC = () => {
       const updatedTag = {
         name: newTagName.trim(),
         color: newTagColor,
-        description: newTagDescription.trim()
+        description: newTagDescription.trim(),
+        isActive: editingTag.isActive
       };
 
       const response = await fetch(`http://localhost:4002/tags/${editingTag.id}`, {
-        method: 'PATCH',
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'X-API-Key': '9oAlpAhPvkKOGwuo6LiU8CPyRPxXSDoRVq1PFD0tkN'
@@ -822,15 +841,18 @@ const WhatsAppManager: React.FC = () => {
     }
   };
 
-  const deleteTag = async (tagId: string) => {
-    if (!window.confirm('❌ Are you sure you want to delete this tag? This action cannot be undone.')) {
-      return;
-    }
+  const handleDeleteClick = (tag: TagType) => {
+    setTagToDelete(tag);
+    setShowDeleteModal(true);
+  };
 
+  const handleDeleteConfirm = async () => {
+    if (!tagToDelete) return;
+    
     try {
-      setIsDeletingTag(true);
+      setDeleteLoading(true);
       
-      const response = await fetch(`http://localhost:4002/tags/${tagId}`, {
+      const response = await fetch(`http://localhost:4002/tags/${tagToDelete.id}`, {
         method: 'DELETE',
         headers: {
           'X-API-Key': '9oAlpAhPvkKOGwuo6LiU8CPyRPxXSDoRVq1PFD0tkN'
@@ -838,18 +860,36 @@ const WhatsAppManager: React.FC = () => {
       });
 
       if (response.ok) {
-        setTags(tags.filter(t => t.id !== tagId));
+        setTags(tags.filter(t => t.id !== tagToDelete.id));
         alert('✅ Tag deleted successfully!');
+        setShowDeleteModal(false);
+        setTagToDelete(null);
       } else {
-        const error = await response.text();
-        alert(`❌ Failed to delete tag: ${error}`);
+        // Parse the error response to extract contact count
+        const errorData = await response.json();
+        const errorMessage = errorData.message || 'Failed to delete tag';
+        
+        // Extract contact count from error message
+        const contactCountMatch = errorMessage.match(/(\d+)\s+contact\(s\)/);
+        const contactCount = contactCountMatch ? parseInt(contactCountMatch[1]) : 0;
+        
+        // Update the tag with the correct contact count
+        setTagToDelete(prev => prev ? { ...prev, contactCount } : null);
+        
+        // Don't close the modal, let it show the updated count
+        return;
       }
     } catch (error) {
       console.error('❌ Error deleting tag:', error);
       alert(`❌ Error deleting tag: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
-      setIsDeletingTag(false);
+      setDeleteLoading(false);
     }
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteModal(false);
+    setTagToDelete(null);
   };
 
   const cancelEdit = () => {
@@ -1040,7 +1080,7 @@ const WhatsAppManager: React.FC = () => {
                 }`}
               >
                 <Tag className="h-4 w-4 inline mr-2" />
-                Tag Management
+                Tag History
               </button>
             </nav>
           </div>
@@ -1701,7 +1741,7 @@ const WhatsAppManager: React.FC = () => {
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-semibold text-gray-900 flex items-center">
                 <Tag className="h-5 w-5 mr-2 text-green-600" />
-                Tag Management
+                Tag History
               </h3>
               <p className="text-sm text-gray-500">
                 Create, edit, and delete tags for your contacts.
@@ -1805,7 +1845,7 @@ const WhatsAppManager: React.FC = () => {
                               Edit
                             </button>
                             <button
-                              onClick={() => deleteTag(tag.id)}
+                              onClick={() => handleDeleteClick(tag)}
                               className="text-sm text-red-600 hover:text-red-700 hover:bg-red-100 px-3 py-1 rounded-md transition-colors"
                             >
                               Delete
@@ -1917,6 +1957,16 @@ const WhatsAppManager: React.FC = () => {
           </div>
         )}
       </div>
+      
+      {/* Delete Confirmation Modal */}
+      <TagDeleteConfirmationModal
+        isOpen={showDeleteModal}
+        onClose={handleDeleteCancel}
+        onConfirm={handleDeleteConfirm}
+        tagName={tagToDelete?.name || ''}
+        contactCount={tagToDelete?.contactCount || 0}
+        isLoading={deleteLoading}
+      />
     </div>
   );
 };
