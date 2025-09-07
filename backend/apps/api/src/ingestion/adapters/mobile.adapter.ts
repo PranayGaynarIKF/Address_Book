@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { SourceSystem } from '../../common/types/enums';
 import * as fs from 'fs';
 import * as path from 'path';
+import { VcfService } from '../../vcf/vcf.service';
 
 export interface MobileContact {
   id: string;
@@ -16,55 +17,62 @@ export interface MobileContact {
 export class MobileAdapter {
   private readonly logger = new Logger(MobileAdapter.name);
 
+  constructor(private readonly vcfService: VcfService) {}
+
   async fetchContacts(): Promise<MobileContact[]> {
     this.logger.log('Fetching contacts from Mobile device');
     
-    // Try VCF file first (mobile contact export)
-    const vcfPath = path.join(process.cwd(), 'samples', 'mobile_contact.vcf');
-    this.logger.log(`Looking for VCF file at: ${vcfPath}`);
-    
     try {
-      if (fs.existsSync(vcfPath)) {
-        this.logger.log(`✅ VCF file found! Reading contacts...`);
-        const contacts = await this.readFromVCF(vcfPath);
-        this.logger.log(`📱 Successfully read ${contacts.length} contacts from VCF file`);
+      // First, try to get the latest uploaded VCF file
+      const latestVcfFile = await this.vcfService.getLatestVcfFile();
+      
+      if (latestVcfFile) {
+        this.logger.log(`✅ Using uploaded VCF file: ${latestVcfFile.filename}`);
+        const contacts = await this.readFromVCF(latestVcfFile.filePath);
+        this.logger.log(`📱 Successfully read ${contacts.length} contacts from uploaded VCF file`);
         return contacts;
-      } else {
-        this.logger.warn(`❌ VCF file not found at: ${vcfPath}`);
-        this.logger.warn(`Current working directory: ${process.cwd()}`);
       }
+      
+      // Fallback to checking local file locations
+      const possiblePaths = [
+        path.join(process.cwd(), 'samples', 'mobile_contact.vcf'),
+        path.join(process.cwd(), 'uploads', 'mobile_contact.vcf'),
+        path.join(process.cwd(), 'data', 'mobile_contact.vcf'),
+      ];
+      
+      let vcfPath: string | null = null;
+      
+      // Look for VCF file in any of the possible locations
+      for (const testPath of possiblePaths) {
+        this.logger.log(`Checking for VCF file at: ${testPath}`);
+        if (fs.existsSync(testPath)) {
+          vcfPath = testPath;
+          this.logger.log(`✅ VCF file found at: ${testPath}`);
+          break;
+        }
+      }
+      
+      if (!vcfPath) {
+        this.logger.warn(`❌ No VCF file found in any of the expected locations:`);
+        possiblePaths.forEach(p => this.logger.warn(`  - ${p}`));
+        this.logger.warn(`Current working directory: ${process.cwd()}`);
+        
+        // Provide helpful error message
+        throw new Error(
+          'No VCF file found for mobile contacts sync. ' +
+          'Please upload a .vcf file through the Data Source Manager ' +
+          'or place a mobile_contact.vcf file in the samples directory.'
+        );
+      }
+      
+      this.logger.log(`📱 Reading contacts from VCF file: ${vcfPath}`);
+      const contacts = await this.readFromVCF(vcfPath);
+      this.logger.log(`📱 Successfully read ${contacts.length} contacts from VCF file`);
+      return contacts;
     } catch (error) {
-      this.logger.warn(`Failed to read VCF file: ${vcfPath}`, error);
+      this.logger.error(`Failed to fetch mobile contacts:`, error);
+      throw error;
     }
-
-    // Fallback to mock mobile contacts
-    this.logger.warn(`⚠️ Using fallback mock data (3 contacts)`);
-    return [
-      {
-        id: 'mobile_001',
-        name: 'John Mobile',
-        email: 'john.mobile@gmail.com',
-        phone: '+919876543210',
-        company: 'Mobile Corp',
-        relationship_type: 'FRIEND',
-      },
-      {
-        id: 'mobile_002',
-        name: 'Sarah Phone',
-        email: 'sarah.phone@outlook.com',
-        phone: '+919876543211',
-        company: 'Phone Inc',
-        relationship_type: 'FAMILY',
-      },
-      {
-        id: 'mobile_003',
-        name: 'Mike Contact',
-        email: 'mike.contact@yahoo.com',
-        phone: '+919876543212',
-        company: 'Contact Ltd',
-        relationship_type: 'WORK',
-      },
-    ];
   }
 
   private async readFromVCF(filePath: string): Promise<MobileContact[]> {

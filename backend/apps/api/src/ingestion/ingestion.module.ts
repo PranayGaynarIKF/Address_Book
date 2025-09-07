@@ -12,9 +12,10 @@ import { MobileAdapter } from './adapters/mobile.adapter';
 import { GoogleAuthModule } from '../auth/google-auth.module';
 import { PrismaModule } from '../common/prisma/prisma.module';
 import { ContactsModule } from '../contacts/contacts.module';
+import { VcfModule } from '../vcf/vcf.module';
 
 @Module({
-  imports: [GoogleAuthModule, ContactsModule, PrismaModule],
+  imports: [GoogleAuthModule, ContactsModule, PrismaModule, VcfModule],
   controllers: [IngestionController],
   providers: [
     IngestionService,

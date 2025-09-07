@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:4002';
 
 // API Key for authentication
 const API_KEY = process.env.REACT_APP_API_KEY || 'my-secret-api-key-123';
@@ -10,6 +10,14 @@ const apiClient = axios.create({
   headers: {
     'X-API-Key': API_KEY,
     'Content-Type': 'application/json',
+  },
+});
+
+// Separate client for file uploads (without Content-Type header)
+const fileUploadClient = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'X-API-Key': API_KEY,
   },
 });
 
@@ -65,11 +73,7 @@ export const vcfAPI = {
     const formData = new FormData();
     formData.append('file', file);
     
-    const response = await apiClient.post('/vcf/upload', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    const response = await fileUploadClient.post('/vcf/upload', formData);
     return response.data;
   },
 
