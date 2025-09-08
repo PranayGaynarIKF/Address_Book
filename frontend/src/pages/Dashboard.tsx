@@ -25,6 +25,12 @@ const Dashboard: React.FC = () => {
             Your professional contact management hub. Manage relationships, track communications, and grow your network with confidence.
           </p>
         </div>
+
+               {/* Quick Actions Section - Hidden as requested */}
+               <div className="max-w-6xl mx-auto">
+                 <div className="text-center py-12">
+                 </div>
+               </div>
       </div>
     </div>
   );

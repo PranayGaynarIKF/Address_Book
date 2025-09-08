@@ -16,6 +16,8 @@ import { EmailModule } from './email/email.module';
 import { MailAccountsModule } from './mail-accounts/mail-accounts.module';
 import { TagsModule } from './tags/tags.module';
 import { WhatsAppModule } from './whatsapp/whatsapp.module';
+import { WhatsAppBulkModule } from './whatsapp/whatsapp-bulk.module';
+import { EmailBulkModule } from './email/email-bulk.module';
 import { VcfModule } from './vcf/vcf.module';
 import { DatabaseModule } from './common/prisma/database.module';
 
@@ -56,6 +58,8 @@ import { DatabaseModule } from './common/prisma/database.module';
     MailAccountsModule,
     TagsModule,
     WhatsAppModule,
+    WhatsAppBulkModule,
+    EmailBulkModule,
     VcfModule,
   ],
 })

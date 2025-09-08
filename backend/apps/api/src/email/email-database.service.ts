@@ -478,16 +478,22 @@ export class EmailDatabaseService {
   async getUserEmailServices(userId: string): Promise<EmailServiceConfig[]> {
     try {
       const results = await this.prisma.$queryRaw`
-        SELECT [id], [userId], [serviceType], [clientId], [clientSecret], [redirectUri], [scopes], [isActive], [createdAt], [updatedAt]
+        SELECT [id], [user_id], [service_type], [client_id], [client_secret], [redirect_uri], [scopes], [is_active], [created_at], [updated_at]
         FROM [db_address_book].[app].[EmailServiceConfigs]
-        WHERE [userId] = ${userId} AND [isActive] = 1
+        WHERE [user_id] = ${userId} AND [is_active] = 1
       `;
 
       return (Array.isArray(results) ? results : [results]).map((result: any) => ({
-        ...result,
+        id: result.id,
+        userId: result.user_id,
+        serviceType: result.service_type,
+        clientId: result.client_id,
+        clientSecret: result.client_secret,
+        redirectUri: result.redirect_uri,
         scopes: JSON.parse(result.scopes),
-        createdAt: result.createdAt,
-        updatedAt: result.updatedAt
+        isActive: result.is_active,
+        createdAt: result.created_at,
+        updatedAt: result.updated_at
       }));
     } catch (error) {
       this.logger.error('Failed to get user email services:', error);
@@ -499,21 +505,90 @@ export class EmailDatabaseService {
   async getEmailServiceConfigs(userId: string, serviceType: EmailServiceType): Promise<EmailServiceConfig[]> {
     try {
       const results = await this.prisma.$queryRaw`
-        SELECT [id], [userId], [serviceType], [clientId], [clientSecret], [redirectUri], [scopes], [isActive], [accountName], [createdAt], [updatedAt]
+        SELECT [id], [user_id], [service_type], [client_id], [client_secret], [redirect_uri], [scopes], [is_active], [account_name], [created_at], [updated_at]
         FROM [db_address_book].[app].[EmailServiceConfigs]
-        WHERE [userId] = ${userId} AND [serviceType] = ${serviceType} AND [isActive] = 1
-        ORDER BY [createdAt] DESC
+        WHERE [user_id] = ${userId} AND [service_type] = ${serviceType} AND [is_active] = 1
+        ORDER BY [created_at] DESC
       `;
 
       return (Array.isArray(results) ? results : [results]).map((result: any) => ({
-        ...result,
+        id: result.id,
+        userId: result.user_id,
+        serviceType: result.service_type,
+        clientId: result.client_id,
+        clientSecret: result.client_secret,
+        redirectUri: result.redirect_uri,
         scopes: JSON.parse(result.scopes),
-        createdAt: result.createdAt,
-        updatedAt: result.updatedAt
+        isActive: result.is_active,
+        accountName: result.account_name,
+        createdAt: result.created_at,
+        updatedAt: result.updated_at
       }));
     } catch (error) {
       this.logger.error('Failed to get email service configs:', error);
       throw new Error(`Failed to get email service configs: ${error.message}`);
+    }
+  }
+
+  // NEW: Get all Gmail tokens from the database
+  async getAllGmailTokens(): Promise<any[]> {
+    try {
+      const results = await this.prisma.$queryRaw`
+        SELECT [id], [user_id], [service_type], [access_token], [refresh_token], [expires_at], [scope], [email], [is_valid], [created_at], [updated_at]
+        FROM [db_address_book].[app].[EmailAuthTokens]
+        WHERE [service_type] = 'GMAIL'
+        ORDER BY [created_at] DESC
+      `;
+
+      return (Array.isArray(results) ? results : [results]).map((token: any) => ({
+        id: token.id,
+        userId: token.user_id,
+        serviceType: token.service_type,
+        accessToken: token.access_token,
+        refreshToken: token.refresh_token,
+        expiresAt: token.expires_at,
+        scope: token.scope,
+        email: token.email,
+        isValid: token.is_valid,
+        createdAt: token.created_at,
+        updatedAt: token.updated_at
+      }));
+    } catch (error) {
+      this.logger.error('Failed to get all Gmail tokens:', error);
+      throw new Error(`Failed to get all Gmail tokens: ${error.message}`);
+    }
+  }
+
+  // NEW: Get any valid Gmail token (regardless of user ID)
+  async getAnyValidGmailToken(): Promise<EmailAuthToken | null> {
+    try {
+      const result = await this.prisma.$queryRaw`
+        SELECT [id], [user_id], [service_type], [access_token], [refresh_token], [expires_at], [scope], [email], [is_valid], [created_at], [updated_at]
+        FROM [db_address_book].[app].[EmailAuthTokens]
+        WHERE [service_type] = 'GMAIL' AND [is_valid] = 1 AND [expires_at] > GETDATE()
+        ORDER BY [created_at] DESC
+      `;
+
+      if (!result || (Array.isArray(result) && result.length === 0)) return null;
+
+      const token = Array.isArray(result) ? result[0] : result;
+
+      return {
+        id: token.id,
+        userId: token.user_id,
+        serviceType: token.service_type,
+        accessToken: token.access_token,
+        refreshToken: token.refresh_token,
+        expiresAt: token.expires_at,
+        scope: JSON.parse(token.scope),
+        email: token.email,
+        isValid: token.is_valid,
+        createdAt: token.created_at,
+        updatedAt: token.updated_at
+      };
+    } catch (error) {
+      this.logger.error('Failed to get any valid Gmail token:', error);
+      throw new Error(`Failed to get any valid Gmail token: ${error.message}`);
     }
   }
 

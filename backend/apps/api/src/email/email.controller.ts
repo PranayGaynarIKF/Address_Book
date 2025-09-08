@@ -728,6 +728,355 @@ export class EmailController {
     }
   }
 
+  @Get('list-all-tokens')
+  @ApiOperation({ 
+    summary: 'List all OAuth tokens',
+    description: 'Lists all OAuth tokens available in the database'
+  })
+  async listAllTokens() {
+    try {
+      // Get all Gmail tokens from the database using the public method
+      const tokens = await this.emailDatabaseService.getAllGmailTokens();
+
+      return {
+        message: `Found ${tokens.length} Gmail tokens`,
+        count: tokens.length,
+        tokens: tokens.map(token => ({
+          id: token.id,
+          userId: token.userId,
+          serviceType: token.serviceType,
+          email: token.email,
+          isValid: token.isValid,
+          expiresAt: token.expiresAt,
+          createdAt: token.createdAt
+        }))
+      };
+    } catch (error) {
+      this.logger.error('Failed to list tokens:', error);
+      throw error;
+    }
+  }
+
+  @Get('test-gmail-token')
+  @ApiOperation({ 
+    summary: 'Test Gmail token retrieval',
+    description: 'Tests if we can find any valid Gmail token'
+  })
+  async testGmailToken() {
+    try {
+      // Try to get any valid Gmail token
+      const token = await this.emailDatabaseService.getAnyValidGmailToken();
+      
+      if (token) {
+        return {
+          message: 'Valid Gmail token found',
+          hasToken: true,
+          token: {
+            id: token.id,
+            userId: token.userId,
+            serviceType: token.serviceType,
+            email: token.email,
+            isValid: token.isValid,
+            expiresAt: token.expiresAt,
+            hasAccessToken: !!token.accessToken,
+            hasRefreshToken: !!token.refreshToken
+          }
+        };
+      } else {
+        return {
+          message: 'No valid Gmail token found',
+          hasToken: false
+        };
+      }
+    } catch (error) {
+      this.logger.error('Failed to test Gmail token:', error);
+      return {
+        message: 'Error testing Gmail token',
+        error: error.message,
+        hasToken: false
+      };
+    }
+  }
+
+  @Get('debug-database')
+  @ApiOperation({ 
+    summary: 'Debug database tokens',
+    description: 'Directly queries the database to see what tokens exist'
+  })
+  async debugDatabase() {
+    try {
+      // Get all tokens from the database
+      const allTokens = await this.emailDatabaseService.getAllGmailTokens();
+      
+      // Get raw results using the public method
+      const rawResults = allTokens.slice(0, 5);
+
+      return {
+        message: 'Database debug completed',
+        allTokensCount: allTokens.length,
+        allTokens: allTokens.map(token => ({
+          id: token.id,
+          userId: token.userId,
+          serviceType: token.serviceType,
+          email: token.email,
+          isValid: token.isValid,
+          expiresAt: token.expiresAt,
+          hasAccessToken: !!token.accessToken,
+          hasRefreshToken: !!token.refreshToken
+        })),
+        rawResults: rawResults
+      };
+    } catch (error) {
+      this.logger.error('Failed to debug database:', error);
+      return {
+        message: 'Error debugging database',
+        error: error.message
+      };
+    }
+  }
+
+  @Post('test-gmail-send')
+  @ApiOperation({ 
+    summary: 'Test Gmail sending with existing tokens',
+    description: 'Tests Gmail sending using any available tokens from the database'
+  })
+  async testGmailSend() {
+    try {
+      // Get all Gmail tokens from the database
+      const allTokens = await this.emailDatabaseService.getAllGmailTokens();
+      
+      if (allTokens.length === 0) {
+        return {
+          message: 'No Gmail tokens found in database',
+          success: false
+        };
+      }
+
+      // Find the first valid token
+      const validToken = allTokens.find(token => 
+        token.isValid && 
+        token.accessToken && 
+        token.refreshToken &&
+        new Date(token.expiresAt) > new Date()
+      );
+
+      if (!validToken) {
+        return {
+          message: 'No valid Gmail tokens found',
+          success: false,
+          availableTokens: allTokens.length
+        };
+      }
+
+      // Initialize Gmail service with the token
+      const gmailService = this.emailManagerService.getEmailService('GMAIL') as any;
+      if (gmailService && typeof gmailService.initializeOAuthClient === 'function') {
+        // Use environment variables for OAuth config
+        const config = {
+          clientId: process.env.GOOGLE_CLIENT_ID,
+          clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+          redirectUri: process.env.GOOGLE_REDIRECT_URI || 'http://localhost:4002/api/mail-accounts/oauth-callback'
+        };
+
+        gmailService.initializeOAuthClient(config.clientId, config.clientSecret, config.redirectUri);
+        
+        // Set the access token
+        if (gmailService.oauth2Client) {
+          gmailService.oauth2Client.setCredentials({
+            access_token: validToken.accessToken,
+            refresh_token: validToken.refreshToken
+          });
+
+          // Test sending an email
+          const testMessage = {
+            to: ['test@example.com'],
+            subject: 'Test Email from Address Book',
+            body: 'This is a test email sent from your Address Book application.',
+            from: 'pranay.gaynar@ikf.co.in'
+          };
+
+          const messageId = await gmailService.sendMessage(testMessage);
+
+          return {
+            message: 'Gmail test email sent successfully!',
+            success: true,
+            messageId: messageId,
+            tokenUsed: {
+              userId: validToken.userId,
+              email: validToken.email,
+              isValid: validToken.isValid
+            }
+          };
+        } else {
+          return {
+            message: 'Failed to initialize OAuth client',
+            success: false
+          };
+        }
+      } else {
+        return {
+          message: 'Gmail service not available',
+          success: false
+        };
+      }
+    } catch (error) {
+      this.logger.error('Failed to test Gmail send:', error);
+      return {
+        message: 'Error testing Gmail send',
+        error: error.message,
+        success: false
+      };
+    }
+  }
+
+  @Get('gmail-oauth-url')
+  @ApiOperation({ 
+    summary: 'Get Gmail OAuth URL with correct scopes',
+    description: 'Generates a Gmail OAuth URL with all required scopes for sending emails'
+  })
+  async getGmailOAuthUrl() {
+    try {
+      const clientId = process.env.GOOGLE_CLIENT_ID;
+      const redirectUri = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:4002/api/mail-accounts/oauth-callback';
+      
+      if (!clientId) {
+        return {
+          message: 'Google Client ID not configured',
+          error: 'Please set GOOGLE_CLIENT_ID in environment variables'
+        };
+      }
+
+      // Required scopes for Gmail sending
+      const scopes = [
+        'https://www.googleapis.com/auth/gmail.readonly',
+        'https://www.googleapis.com/auth/gmail.send',
+        'https://www.googleapis.com/auth/gmail.modify',
+        'https://www.googleapis.com/auth/gmail.labels',
+        'https://www.googleapis.com/auth/gmail.compose'
+      ];
+
+      const scopeString = scopes.join(' ');
+      const state = 'gmail-bulk-send-' + Date.now();
+      
+      const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+        `client_id=${clientId}&` +
+        `redirect_uri=${encodeURIComponent(redirectUri)}&` +
+        `scope=${encodeURIComponent(scopeString)}&` +
+        `response_type=code&` +
+        `access_type=offline&` +
+        `prompt=consent&` +
+        `state=${state}`;
+
+      return {
+        message: 'Gmail OAuth URL generated successfully',
+        oauthUrl: oauthUrl,
+        instructions: [
+          '1. Click the oauthUrl below to open Gmail OAuth',
+          '2. Sign in with your Google account (pranay.gaynar@ikf.co.in)',
+          '3. Grant ALL permissions when prompted',
+          '4. You will be redirected back to the application',
+          '5. The new tokens will have the correct scopes for sending emails'
+        ],
+        scopes: scopes
+      };
+    } catch (error) {
+      this.logger.error('Failed to generate Gmail OAuth URL:', error);
+      return {
+        message: 'Error generating OAuth URL',
+        error: error.message
+      };
+    }
+  }
+
+  @Post('test-html-email')
+  @ApiOperation({
+    summary: 'Test HTML email sending',
+    description: 'Tests sending an HTML email to verify proper formatting'
+  })
+  async testHtmlEmail() {
+    try {
+      const gmailService = this.emailManagerService.getEmailService('GMAIL') as any;
+      if (gmailService && typeof gmailService.initializeOAuthClient === 'function') {
+        // Get a valid token
+        const allTokens = await this.emailDatabaseService.getAllGmailTokens();
+        const validToken = allTokens.find(token => 
+          token.isValid && 
+          token.accessToken && 
+          token.refreshToken &&
+          new Date(token.expiresAt) > new Date()
+        );
+
+        if (!validToken) {
+          return {
+            message: 'No valid Gmail tokens found',
+            success: false
+          };
+        }
+
+        // Initialize Gmail service
+        const config = {
+          clientId: process.env.GOOGLE_CLIENT_ID,
+          clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+          redirectUri: process.env.GOOGLE_REDIRECT_URI || 'http://localhost:4002/api/mail-accounts/oauth-callback'
+        };
+
+        gmailService.initializeOAuthClient(config.clientId, config.clientSecret, config.redirectUri);
+        
+        if (gmailService.oauth2Client) {
+          gmailService.oauth2Client.setCredentials({
+            access_token: validToken.accessToken,
+            refresh_token: validToken.refreshToken
+          });
+
+          // Test HTML email
+          const htmlContent = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f8fafc;">
+              <div style="background-color: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <h2 style="color: #dc2626; margin-bottom: 20px; font-size: 24px;">Test HTML Email</h2>
+                <p style="color: #374151; line-height: 1.6; margin-bottom: 15px;">Hello Pran Test,</p>
+                <p style="color: #374151; line-height: 1.6; margin-bottom: 15px;">This is a test HTML email to verify proper formatting.</p>
+                <p style="color: #374151; line-height: 1.6; margin-bottom: 20px;">Contact us: <strong>9876543210</strong></p>
+                <p style="color: #374151; line-height: 1.6;">Thanks,<br><strong>IKF Team</strong></p>
+              </div>
+            </div>
+          `;
+
+          const testMessage = {
+            to: ['pranay.gaynar@ikf.co.in'],
+            subject: 'Test HTML Email - Direct Test',
+            body: htmlContent
+          };
+
+          const messageId = await gmailService.sendMessage(testMessage);
+
+          return {
+            message: 'HTML test email sent successfully!',
+            success: true,
+            messageId: messageId,
+            htmlContent: htmlContent.substring(0, 200) + '...'
+          };
+        } else {
+          return {
+            message: 'OAuth client not initialized',
+            success: false
+          };
+        }
+      } else {
+        return {
+          message: 'Gmail service not available',
+          success: false
+        };
+      }
+    } catch (error) {
+      this.logger.error('Failed to send HTML test email:', error);
+      return {
+        message: 'Error sending HTML test email',
+        error: error.message,
+        success: false
+      };
+    }
+  }
+
   @Post('test-insert-token')
   async testInsertToken(@Request() req) {
     try {

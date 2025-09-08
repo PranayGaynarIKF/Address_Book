@@ -27,7 +27,7 @@ export class GmailService implements IEmailService {
   private gmail: any;
 
   // Initialize OAuth client with credentials
-  private initializeOAuthClient(clientId: string, clientSecret: string, redirectUri: string) {
+  public initializeOAuthClient(clientId: string, clientSecret: string, redirectUri: string) {
     this.oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
     this.gmail = google.gmail({ version: 'v1', auth: this.oauth2Client });
   }
@@ -163,18 +163,67 @@ export class GmailService implements IEmailService {
 
   async sendMessage(message: EmailSendRequest): Promise<string> {
     try {
-      const email = this.buildEmailMessage(message);
-      const encodedMessage = Buffer.from(email).toString('base64').replace(/\+/g, '-').replace(/\//g, '_');
+      // Check if the body contains HTML tags
+      const isHtml = /<[a-z][\s\S]*>/i.test(message.body) || 
+                     message.body.includes('<div') || 
+                     message.body.includes('<p>') || 
+                     message.body.includes('<h1>') || 
+                     message.body.includes('<h2>') || 
+                     message.body.includes('<h3>') ||
+                     message.body.includes('<strong>') ||
+                     message.body.includes('<b>') ||
+                     message.body.includes('<i>') ||
+                     message.body.includes('<br>');
 
-      const response = await this.gmail.users.messages.send({
-        userId: 'me',
-        requestBody: {
-          raw: encodedMessage
-        }
-      });
+      if (isHtml) {
+        // Use Gmail API's proper format for HTML emails with multipart structure
+        const boundary = `boundary_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const plainTextBody = message.body.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+        
+        const emailContent = 
+          `From: ${process.env.GMAIL_FROM_EMAIL || 'noreply@example.com'}\r\n` +
+          `To: ${message.to.join(', ')}\r\n` +
+          `Subject: ${message.subject}\r\n` +
+          `MIME-Version: 1.0\r\n` +
+          `Content-Type: multipart/alternative; boundary="${boundary}"\r\n` +
+          `Date: ${new Date().toUTCString()}\r\n` +
+          `\r\n` +
+          `--${boundary}\r\n` +
+          `Content-Type: text/plain; charset=utf-8\r\n` +
+          `\r\n` +
+          `${plainTextBody}\r\n` +
+          `\r\n` +
+          `--${boundary}\r\n` +
+          `Content-Type: text/html; charset=utf-8\r\n` +
+          `\r\n` +
+          `${message.body}\r\n` +
+          `\r\n` +
+          `--${boundary}--`;
 
-      this.logger.log(`Gmail message sent successfully: ${response.data.id}`);
-      return response.data.id;
+        const response = await this.gmail.users.messages.send({
+          userId: 'me',
+          requestBody: {
+            raw: Buffer.from(emailContent).toString('base64').replace(/\+/g, '-').replace(/\//g, '_')
+          }
+        });
+
+        this.logger.log(`Gmail HTML message sent successfully: ${response.data.id}`);
+        return response.data.id;
+      } else {
+        // Use the original method for plain text
+        const email = this.buildEmailMessage(message);
+        const encodedMessage = Buffer.from(email).toString('base64').replace(/\+/g, '-').replace(/\//g, '_');
+
+        const response = await this.gmail.users.messages.send({
+          userId: 'me',
+          requestBody: {
+            raw: encodedMessage
+          }
+        });
+
+        this.logger.log(`Gmail message sent successfully: ${response.data.id}`);
+        return response.data.id;
+      }
     } catch (error) {
       this.logger.error('Failed to send Gmail message:', error);
       throw new Error(`Failed to send Gmail message: ${error.message}`);
@@ -345,11 +394,26 @@ export class GmailService implements IEmailService {
   }
 
   private buildEmailMessage(message: EmailSendRequest): string {
+    // Check if the body contains HTML tags (more robust detection)
+    const isHtml = /<[a-z][\s\S]*>/i.test(message.body) || 
+                   message.body.includes('<div') || 
+                   message.body.includes('<p>') || 
+                   message.body.includes('<h1>') || 
+                   message.body.includes('<h2>') || 
+                   message.body.includes('<h3>') ||
+                   message.body.includes('<strong>') ||
+                   message.body.includes('<b>') ||
+                   message.body.includes('<i>') ||
+                   message.body.includes('<br>');
+    
+    // Debug logging
+    this.logger.log(`Email body preview: ${message.body.substring(0, 100)}...`);
+    this.logger.log(`Is HTML detected: ${isHtml}`);
+    
     const headers = [
       `From: ${process.env.GMAIL_FROM_EMAIL || 'noreply@example.com'}`,
       `To: ${message.to.join(', ')}`,
       `Subject: ${message.subject}`,
-      `Content-Type: text/plain; charset=utf-8`,
       `MIME-Version: 1.0`,
       `Date: ${new Date().toUTCString()}`
     ];
@@ -366,7 +430,17 @@ export class GmailService implements IEmailService {
       headers.push(`Reply-To: ${message.replyTo}`);
     }
 
-    return `${headers.join('\r\n')}\r\n\r\n${message.body}`;
+    if (isHtml) {
+      // For HTML emails, use simple HTML content type
+      headers.push(`Content-Type: text/html; charset=utf-8`);
+      
+      this.logger.log(`Sending HTML email with content: ${message.body.substring(0, 200)}...`);
+      return `${headers.join('\r\n')}\r\n\r\n${message.body}`;
+    } else {
+      // For plain text emails
+      headers.push(`Content-Type: text/plain; charset=utf-8`);
+      return `${headers.join('\r\n')}\r\n\r\n${message.body}`;
+    }
   }
 
   private mapGmailLabelToFolderType(labelId: string): EmailFolder['type'] {

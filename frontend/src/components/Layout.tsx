@@ -17,7 +17,9 @@ import {
   Mail,
   Shield,
   MessageCircle,
-  Tag
+  Tag,
+  Send,
+  MessageSquare as MessageSquareIcon
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -33,16 +35,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navigation = [
     { name: 'Dashboard', href: '/', icon: Home },
     { name: 'Contacts', href: '/contacts', icon: Users },
-    // Contact List removed - now integrated into Contacts section
-    // Hidden per request: Owners, Templates, Messages, WhatsApp, Mail Accounts, Merge History
-    // { name: 'Owners', href: '/owners', icon: UserCheck },
-    // { name: 'Templates', href: '/templates', icon: FileText },
-    // { name: 'Messages', href: '/messages', icon: MessageSquare },
-    // { name: 'WhatsApp', href: '/whatsapp', icon: MessageCircle },
-    // { name: 'Mail Accounts', href: '/mail-accounts', icon: Shield },
+    { name: 'WhatsApp', href: '/whatsapp', icon: MessageCircle },
+    { name: 'Email', href: '/email', icon: Mail },
     { name: 'Sync', href: '/ingestion', icon: Database },
     { name: 'Data Sources', href: '/data-sources', icon: LinkIcon },
-    // { name: 'Merge History', href: '/merge-history', icon: History },
     { name: 'Tag History', href: '/tag-management', icon: Tag },
   ];
 
@@ -196,6 +192,37 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             {children}
           </div>
         </main>
+
+        {/* Floating Action Button for Bulk Messaging */}
+        <div className="fixed bottom-6 right-6 z-50">
+          <div className="flex flex-col space-y-3">
+            {/* WhatsApp Bulk Messaging */}
+            <Link
+              to="/whatsapp"
+              className="group relative"
+            >
+              <div className="flex items-center justify-center w-14 h-14 bg-green-600 text-white rounded-full shadow-lg hover:shadow-xl transform hover:scale-110 transition-all duration-300 ease-in-out">
+                <MessageCircle className="h-6 w-6" />
+              </div>
+              <div className="absolute right-16 top-1/2 transform -translate-y-1/2 bg-gray-900 text-white text-sm px-3 py-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap">
+                WhatsApp Bulk Messaging
+              </div>
+            </Link>
+
+            {/* Email Bulk Messaging */}
+            <Link
+              to="/email"
+              className="group relative"
+            >
+              <div className="flex items-center justify-center w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg hover:shadow-xl transform hover:scale-110 transition-all duration-300 ease-in-out">
+                <Mail className="h-6 w-6" />
+              </div>
+              <div className="absolute right-16 top-1/2 transform -translate-y-1/2 bg-gray-900 text-white text-sm px-3 py-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap">
+                Email Bulk Messaging
+              </div>
+            </Link>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -13,9 +13,11 @@ import {
   Plus,
   Search,
   RefreshCw,
-  Tag
+  Tag,
+  Mail
 } from 'lucide-react';
 import { TagDeleteConfirmationModal } from '../TagDeleteConfirmationModal';
+import WhatsAppBulkMessaging from '../WhatsAppBulkMessaging';
 
 interface Contact {
   id: string;
@@ -75,7 +77,7 @@ const WhatsAppManager: React.FC = () => {
   const [isSending, setIsSending] = useState(false);
   const [messages, setMessages] = useState<WhatsAppMessage[]>([]);
   const [stats, setStats] = useState<WhatsAppStats | null>(null);
-  const [activeTab, setActiveTab] = useState<'compose' | 'templates' | 'history' | 'statistics' | 'tag-management'>('compose');
+  const [activeTab, setActiveTab] = useState<'compose' | 'templates' | 'history' | 'statistics' | 'tag-management' | 'bulk-messaging'>('compose');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(false);
@@ -97,6 +99,9 @@ const WhatsAppManager: React.FC = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [tagToDelete, setTagToDelete] = useState<TagType | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // Bulk messaging modal
+  const [showBulkMessaging, setShowBulkMessaging] = useState(false);
 
   console.log('🎯 WhatsAppManager component rendering!');
   console.log('🎯 Component state - tags:', tags.length, 'selectedTags:', selectedTags.size);
@@ -1082,6 +1087,17 @@ const WhatsAppManager: React.FC = () => {
                 <Tag className="h-4 w-4 inline mr-2" />
                 Tag History
               </button>
+              <button
+                onClick={() => setShowBulkMessaging(true)}
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'bulk-messaging'
+                    ? 'border-green-500 text-green-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <MessageSquare className="h-4 w-4 inline mr-2" />
+                Bulk Messaging
+              </button>
             </nav>
           </div>
         </div>
@@ -1967,6 +1983,11 @@ const WhatsAppManager: React.FC = () => {
         contactCount={tagToDelete?.contactCount || 0}
         isLoading={deleteLoading}
       />
+
+      {/* Bulk Messaging Modal */}
+      {showBulkMessaging && (
+        <WhatsAppBulkMessaging onClose={() => setShowBulkMessaging(false)} />
+      )}
     </div>
   );
 };
