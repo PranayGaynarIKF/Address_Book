@@ -138,7 +138,11 @@ const GmailAccountModal: React.FC<{
               <li>3. Enable Gmail API</li>
               <li>4. Create OAuth 2.0 credentials</li>
               <li>5. Add redirect URI: <code className="bg-blue-100 px-1 rounded">http://localhost:4002/api/mail-accounts/oauth-callback</code></li>
+              <li>6. Copy the Client ID and Client Secret to your backend .env file</li>
             </ol>
+            <div className="mt-2 p-2 bg-yellow-100 border border-yellow-300 rounded text-xs text-yellow-800">
+              <strong>Important:</strong> Make sure to restart your backend server after updating the .env file with the OAuth credentials.
+            </div>
           </div>
 
           <div className="flex gap-3 pt-4">

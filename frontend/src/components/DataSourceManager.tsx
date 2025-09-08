@@ -80,7 +80,8 @@ const DataSourceManager: React.FC = () => {
       });
       
       if (!createResponse.ok) {
-        throw new Error('Failed to create Gmail account');
+        const errorData = await createResponse.json();
+        throw new Error(errorData.message || 'Failed to create Gmail account');
       }
       
       const accountData = await createResponse.json();
@@ -101,7 +102,8 @@ const DataSourceManager: React.FC = () => {
       });
       
       if (!oauthResponse.ok) {
-        throw new Error('Failed to initiate OAuth');
+        const errorData = await oauthResponse.json();
+        throw new Error(errorData.message || 'Failed to initiate OAuth');
       }
       
       const oauthData = await oauthResponse.json();
@@ -146,6 +148,10 @@ const DataSourceManager: React.FC = () => {
       }, 1000);
       
       setIsGmailModalOpen(false);
+    },
+    onError: (error: any) => {
+      console.error('Gmail account addition failed:', error);
+      alert(`❌ Failed to add Gmail account: ${error.message}`);
     },
   });
 
@@ -276,6 +282,25 @@ const DataSourceManager: React.FC = () => {
           <Plus size={16} />
           Connect Gmail Account
         </button>
+      </div>
+
+      {/* OAuth Configuration Notice */}
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+        <h4 className="font-medium text-amber-900 mb-2">⚠️ Gmail OAuth Setup Required</h4>
+        <div className="text-sm text-amber-800 space-y-2">
+          <p><strong>To add Gmail accounts, you need to configure Google OAuth credentials:</strong></p>
+          <ol className="list-decimal list-inside space-y-1 ml-4">
+            <li>Go to <a href="https://console.developers.google.com/" target="_blank" rel="noopener noreferrer" className="underline text-amber-700">Google Cloud Console</a></li>
+            <li>Create a new project or select existing one</li>
+            <li>Enable Gmail API</li>
+            <li>Create OAuth 2.0 credentials</li>
+            <li>Add redirect URI: <code className="bg-amber-100 px-1 rounded">http://localhost:4002/api/mail-accounts/oauth-callback</code></li>
+            <li>Copy the Client ID and Client Secret to your backend .env file</li>
+          </ol>
+          <p className="text-amber-700 mt-2">
+            <strong>Note:</strong> Without proper OAuth configuration, Gmail account addition will fail.
+          </p>
+        </div>
       </div>
 
       {gmailLoading ? (

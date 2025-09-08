@@ -1,0 +1,161 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Owner {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  links     ContactOwner[]
+  messages  OutboundMessage[]
+
+  @@map("Owners")
+}
+
+model Contact {
+  id                  String   @id @default(cuid())
+  name                String
+  companyName         String
+  email               String?
+  mobileE164          String?
+  relationshipType    String?
+  isWhatsappReachable Boolean  @default(false)
+  dataQualityScore    Int      @default(0)
+
+  sourceSystem   String
+  sourceRecordId String
+
+  owners     ContactOwner[]
+  messages   OutboundMessage[]
+  contactTags ContactTag[]
+  whatsappMessages WhatsAppMessage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name, mobileE164])
+  @@index([companyName])
+  @@index([sourceSystem, sourceRecordId])
+  @@map("Contacts")
+}
+
+model ContactOwner {
+  id        String  @id @default(cuid())
+  contactId String
+  ownerId   String
+  createdAt DateTime @default(now())
+
+  contact Contact @relation(fields: [contactId], references: [id])
+  owner   Owner   @relation(fields: [ownerId], references: [id])
+
+  @@unique([contactId, ownerId])
+  @@index([ownerId])
+  @@map("ContactOwners")
+}
+
+model MessageTemplate {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  channel   String   // WHATSAPP, EMAIL, SMS
+  body      String
+  is_active  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  messages  OutboundMessage[]
+
+  @@map("MessageTemplates")
+}
+
+model OutboundMessage {
+  id            String   @id @default(cuid())
+  contactId     String
+  ownerId       String
+  channel       String   // WHATSAPP, EMAIL, SMS
+  templateId    String?
+  body          String
+  status        String   // SENT, FAILED, PENDING
+  sentAt        DateTime?
+  errorMessage  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  contact  Contact         @relation(fields: [contactId], references: [id])
+  owner    Owner           @relation(fields: [ownerId], references: [id])
+  template MessageTemplate? @relation(fields: [templateId], references: [id])
+
+  @@index([contactId])
+  @@index([ownerId])
+  @@index([channel])
+  @@index([status])
+  @@map("OutboundMessages")
+}
+
+model Tag {
+  id          String      @id @default(cuid())
+  name        String      @unique
+  color       String      @default("#3B82F6")
+  description String?
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  contactTags ContactTag[]
+
+  @@index([name])
+  @@index([isActive])
+  @@map("Tags")
+}
+
+model ContactTag {
+  id        String  @id @default(cuid())
+  contactId String
+  tagId     String
+  createdAt DateTime @default(now())
+
+  contact Contact @relation(fields: [contactId], references: [id])
+  tag     Tag     @relation(fields: [tagId], references: [id])
+
+  @@unique([contactId, tagId])
+  @@index([tagId])
+  @@map("ContactTags")
+}
+
+model WhatsAppMessage {
+  id        String   @id @default(cuid())
+  contactId String
+  messageId String?
+  status    String   // SENT, FAILED, PENDING
+  sentAt    DateTime?
+  createdAt DateTime @default(now())
+
+  contact Contact @relation(fields: [contactId], references: [id])
+
+  @@index([contactId])
+  @@index([status])
+  @@map("WhatsAppMessages")
+}
+
+model EmailAuthToken {
+  id           String   @id @default(cuid())
+  userId       String
+  serviceType  String   // GMAIL, OUTLOOK, YAHOO, ZOHO
+  accessToken  String
+  refreshToken String
+  expiresAt    DateTime
+  scope        String   // JSON string of scopes
+  email        String?
+  isValid      Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+  @@index([isValid])
+  @@index([expiresAt])
+  @@map("EmailAuthTokens")
+}

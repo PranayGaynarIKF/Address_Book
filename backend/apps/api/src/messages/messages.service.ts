@@ -66,6 +66,7 @@ export class MessagesService {
         channel: sendDto.channel,
         templateId: sendDto.templateId,
         body: messageBody,
+        content: messageBody, // Add missing content field
         status: MessageStatus.PENDING,
       },
     });

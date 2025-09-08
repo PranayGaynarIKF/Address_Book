@@ -162,6 +162,7 @@ model OutboundMessage {
   channel       String   @map("channel") // WHATSAPP, EMAIL, SMS
   templateId    String?  @map("template_id")
   body          String   @map("body")
+  content       String   @map("content") // Add missing content field
   status        String   @map("status") // PENDING, SENT, DELIVERED, FAILED
   providerMsgId String?  @map("provider_msg_id")
   meta          String?  @map("meta") // JSON string for additional data

@@ -22,6 +22,7 @@ export interface OutboundMessageData {
   ownerId: string;
   channel: string;
   body: string;
+  content: string; // Add missing content field
   status: string;
   providerMsgId?: string;
   meta?: string;
@@ -841,6 +842,7 @@ export class WhatsAppService {
         ownerId: 'system', // You might need to get this from context
         channel: 'WHATSAPP',
         body: message,
+        content: message, // Add missing content field
         status: status.toUpperCase(),
         providerMsgId: messageId,
         meta: error ? JSON.stringify({ error, sentAt: new Date() }) : null
