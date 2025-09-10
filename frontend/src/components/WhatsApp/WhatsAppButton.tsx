@@ -1,5 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { MessageSquare, Send, X, CheckCircle, XCircle, Phone, User } from 'lucide-react';
+import TemplateSelector from '../TemplateSelector';
+import TemplateCreationModal from '../TemplateCreationModal';
 
 interface WhatsAppButtonProps {
   contactId: string;
@@ -20,6 +22,9 @@ const WhatsAppButton: React.FC<WhatsAppButtonProps> = ({
   const [language, setLanguage] = useState('en');
   const [isSending, setIsSending] = useState(false);
   const [lastStatus, setLastStatus] = useState<'success' | 'error' | null>(null);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+  const [selectedTemplateData, setSelectedTemplateData] = useState<any>(null);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
 
   // Simple template definitions
   const templates = [
@@ -48,7 +53,7 @@ const WhatsAppButton: React.FC<WhatsAppButtonProps> = ({
     setIsSending(false);
   }, []);
 
-  const handleTemplateChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+  const handleOldTemplateChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
     console.log('🔍 Template changed to:', e.target.value);
     setSelectedTemplate(e.target.value);
   }, []);
@@ -63,8 +68,29 @@ const WhatsAppButton: React.FC<WhatsAppButtonProps> = ({
     setLanguage(e.target.value);
   }, []);
 
+  const handleTemplateSelect = (templateId: string) => {
+    setSelectedTemplateId(templateId);
+  };
+
+  const handleTemplateChange = (template: any) => {
+    setSelectedTemplateData(template);
+    if (template) {
+      setCustomMessage(template.body.replace(/\\n/g, '\n'));
+    }
+  };
+
+  const handleCreateTemplate = () => {
+    setShowTemplateModal(true);
+  };
+
+  const handleTemplateCreated = (newTemplate: any) => {
+    setSelectedTemplateId(newTemplate.id);
+    setSelectedTemplateData(newTemplate);
+    setCustomMessage(newTemplate.body.replace(/\\n/g, '\n'));
+  };
+
   const sendMessage = async () => {
-    if (!selectedTemplate || !contactId || !phone) {
+    if (!selectedTemplateId || !contactId || !phone) {
       alert('❌ Please select a template and ensure contact has phone number');
       return;
     }
@@ -78,29 +104,12 @@ const WhatsAppButton: React.FC<WhatsAppButtonProps> = ({
       
       // Generate personalized message from template
       let templateText = '';
-      if (typeof selectedTemplate === 'string') {
-        // Handle string template names
-        switch (selectedTemplate) {
-          case 'basic':
-            templateText = `Hi ${contactName}, welcome to our service! How can we help you today?`;
-            break;
-          case 'follow_up':
-            templateText = `Hi ${contactName}, just following up on our recent conversation. Is there anything else you need?`;
-            break;
-          case 'reminder':
-            templateText = `Hi ${contactName}, this is a friendly reminder about your upcoming appointment.`;
-            break;
-          case 'custom':
-            templateText = customMessage || `Hi ${contactName}, how are you?`;
-            break;
-          default:
-            templateText = `Hi ${contactName}, thank you for your interest!`;
-        }
-      } else if (selectedTemplate && typeof selectedTemplate === 'object' && 'text' in selectedTemplate) {
-        // Handle template objects with text property
-        templateText = (selectedTemplate as any).text.replace('{{name}}', contactName);
+      if (selectedTemplateData) {
+        // Use the selected template data
+        templateText = selectedTemplateData.body.replace(/\{\{name\}\}/g, contactName);
       } else {
-        templateText = `Hi ${contactName}, thank you for your interest!`;
+        // Fallback to custom message
+        templateText = customMessage || `Hi ${contactName}, thank you for your interest!`;
       }
       
       // Use ONLY the working /whatsapp/send-text-message endpoint
@@ -278,69 +287,17 @@ const WhatsAppButton: React.FC<WhatsAppButtonProps> = ({
 
               {/* Template Selection */}
               <div style={{ marginBottom: '16px' }}>
-                <label style={{
-                  display: 'block',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  color: '#374151',
-                  marginBottom: '8px'
-                }}>
-                  Select Template:
-                </label>
-                <select
-                  value={selectedTemplate}
-                  onChange={handleTemplateChange}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '6px',
-                    fontSize: '14px',
-                    outline: 'none',
-                    cursor: 'pointer',
-                    backgroundColor: 'white'
-                  }}
-                  disabled={isSending}
-                >
-                  {templates.map((template) => (
-                    <option key={template.id} value={template.id}>
-                      {template.name}
-                    </option>
-                  ))}
-                </select>
+                <TemplateSelector
+                  channel="WHATSAPP"
+                  selectedTemplate={selectedTemplateId}
+                  onTemplateSelect={handleTemplateSelect}
+                  onTemplateChange={handleTemplateChange}
+                  onCreateTemplate={handleCreateTemplate}
+                />
               </div>
 
-              {/* Template Preview */}
-              {selectedTemplate !== 'custom' && (
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={{
-                    display: 'block',
-                    fontSize: '14px',
-                    fontWeight: '500',
-                    color: '#374151',
-                    marginBottom: '8px'
-                  }}>
-                    Message Preview:
-                  </label>
-                  <div style={{
-                    backgroundColor: '#f9fafb',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '6px',
-                    padding: '12px'
-                  }}>
-                    <p style={{
-                      color: '#374151',
-                      fontSize: '14px',
-                      margin: 0
-                    }}>
-                      {templates.find(t => t.id === selectedTemplate)?.text.replace('{{name}}', contactName)}
-                    </p>
-                  </div>
-                </div>
-              )}
-
               {/* Custom Message */}
-              {selectedTemplate === 'custom' && (
+              {selectedTemplateId && (
                 <div style={{ marginBottom: '16px' }}>
                   <label style={{
                     display: 'block',
@@ -469,29 +426,29 @@ const WhatsAppButton: React.FC<WhatsAppButtonProps> = ({
                 </button>
                 <button
                   onClick={sendMessage}
-                  disabled={isSending || !selectedTemplate}
+                  disabled={isSending || !selectedTemplateId}
                   style={{
                     flex: 1,
                     padding: '8px 16px',
                     fontSize: '14px',
                     fontWeight: '500',
                     color: 'white',
-                    backgroundColor: isSending || !selectedTemplate ? '#9ca3af' : '#059669',
+                    backgroundColor: isSending || !selectedTemplateId ? '#9ca3af' : '#059669',
                     border: 'none',
                     borderRadius: '6px',
-                    cursor: isSending || !selectedTemplate ? 'not-allowed' : 'pointer',
+                    cursor: isSending || !selectedTemplateId ? 'not-allowed' : 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '8px'
                   }}
                   onMouseEnter={(e) => {
-                    if (!isSending && selectedTemplate) {
+                    if (!isSending && selectedTemplateId) {
                       e.currentTarget.style.backgroundColor = '#047857';
                     }
                   }}
                   onMouseLeave={(e) => {
-                    if (!isSending && selectedTemplate) {
+                    if (!isSending && selectedTemplateId) {
                       e.currentTarget.style.backgroundColor = '#059669';
                     }
                   }}
@@ -530,6 +487,14 @@ const WhatsAppButton: React.FC<WhatsAppButtonProps> = ({
           }
         `
       }} />
+
+      {/* Template Creation Modal */}
+      <TemplateCreationModal
+        isOpen={showTemplateModal}
+        onClose={() => setShowTemplateModal(false)}
+        onTemplateCreated={handleTemplateCreated}
+        channel="WHATSAPP"
+      />
     </>
   );
 };

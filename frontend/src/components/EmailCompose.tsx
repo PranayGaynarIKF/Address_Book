@@ -13,6 +13,9 @@ import {
   Users,
   Tag
 } from 'lucide-react';
+import TemplateSelector from './TemplateSelector';
+import TemplateCreationModal from './TemplateCreationModal';
+import GmailOAuthCheck from './GmailOAuthCheck';
 
 interface EmailComposeProps {
   isOpen: boolean;
@@ -67,6 +70,10 @@ const EmailCompose: React.FC<EmailComposeProps> = ({ isOpen, onClose, replyTo })
   const [isLoadingTags, setIsLoadingTags] = useState(false);
   const [selectedTagContacts, setSelectedTagContacts] = useState<any[]>([]);
   const [showTagContacts, setShowTagContacts] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+  const [selectedTemplateData, setSelectedTemplateData] = useState<any>(null);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [showOAuthModal, setShowOAuthModal] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -193,6 +200,35 @@ const EmailCompose: React.FC<EmailComposeProps> = ({ isOpen, onClose, replyTo })
     }));
   };
 
+  const handleTemplateSelect = (templateId: string) => {
+    setSelectedTemplate(templateId);
+  };
+
+  const handleTemplateChange = (template: any) => {
+    setSelectedTemplateData(template);
+    if (template) {
+      // Apply template to content
+      setDraft(prev => ({
+        ...prev,
+        content: template.body.replace(/\\n/g, '\n')
+      }));
+    }
+  };
+
+  const handleCreateTemplate = () => {
+    setShowTemplateModal(true);
+  };
+
+  const handleTemplateCreated = (newTemplate: any) => {
+    // Refresh template list or add to current list
+    setSelectedTemplate(newTemplate.id);
+    setSelectedTemplateData(newTemplate);
+    setDraft(prev => ({
+      ...prev,
+      content: newTemplate.body.replace(/\\n/g, '\n')
+    }));
+  };
+
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
     setDraft(prev => ({
@@ -242,6 +278,13 @@ const EmailCompose: React.FC<EmailComposeProps> = ({ isOpen, onClose, replyTo })
   const handleSend = async () => {
     if (!validateDraft()) return;
 
+    // Check Gmail OAuth before sending
+    setShowOAuthModal(true);
+  };
+
+  const handleOAuthSuccess = async () => {
+    setShowOAuthModal(false);
+    
     setIsLoading(true);
     setError('');
     setSuccess('');
@@ -259,6 +302,11 @@ const EmailCompose: React.FC<EmailComposeProps> = ({ isOpen, onClose, replyTo })
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleOAuthError = (error: string) => {
+    console.error('Gmail OAuth error:', error);
+    setError(`Gmail authentication failed: ${error}`);
   };
 
   const sendRegularEmail = async () => {
@@ -798,6 +846,16 @@ const EmailCompose: React.FC<EmailComposeProps> = ({ isOpen, onClose, replyTo })
               </div>
             </div>
 
+            {/* Template Selection */}
+            <TemplateSelector
+              channel="EMAIL"
+              selectedTemplate={selectedTemplate}
+              onTemplateSelect={handleTemplateSelect}
+              onTemplateChange={handleTemplateChange}
+              onCreateTemplate={handleCreateTemplate}
+              className="mb-4"
+            />
+
             {/* Message Content */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -853,6 +911,22 @@ const EmailCompose: React.FC<EmailComposeProps> = ({ isOpen, onClose, replyTo })
           </div>
         </div>
       </div>
+
+      {/* Template Creation Modal */}
+      <TemplateCreationModal
+        isOpen={showTemplateModal}
+        onClose={() => setShowTemplateModal(false)}
+        onTemplateCreated={handleTemplateCreated}
+        channel="EMAIL"
+      />
+
+      {/* Gmail OAuth Check Modal */}
+      <GmailOAuthCheck
+        isOpen={showOAuthModal}
+        onClose={() => setShowOAuthModal(false)}
+        onAuthSuccess={handleOAuthSuccess}
+        onAuthError={handleOAuthError}
+      />
     </div>
   );
 };

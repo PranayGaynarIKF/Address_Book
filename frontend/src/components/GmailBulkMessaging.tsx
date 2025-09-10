@@ -10,8 +10,11 @@ import {
   FileText,
   Search,
   RefreshCw,
-  Eye
+  Eye,
+  Trash2
 } from 'lucide-react';
+import TemplateCreationModal from './TemplateCreationModal';
+import GmailOAuthCheck from './GmailOAuthCheck';
 
 interface Contact {
   id: string;
@@ -48,6 +51,8 @@ const GmailBulkMessaging: React.FC<GmailBulkMessagingProps> = ({ onClose }) => {
   const [emailSubject, setEmailSubject] = useState<string>('');
   const [emailContent, setEmailContent] = useState<string>('');
   const [isSending, setIsSending] = useState(false);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [showOAuthModal, setShowOAuthModal] = useState(false);
   const [sendProgress, setSendProgress] = useState({ sent: 0, total: 0 });
   const [searchTerm, setSearchTerm] = useState('');
   const [showPreview, setShowPreview] = useState(false);
@@ -85,53 +90,26 @@ const GmailBulkMessaging: React.FC<GmailBulkMessagingProps> = ({ onClose }) => {
     },
   });
 
-  // Mock email templates - in real implementation, fetch from your template API
-  const emailTemplates: EmailTemplate[] = [
-    {
-      id: '1',
-      name: 'Welcome Email',
-      subject: 'Welcome {{name}} - Welcome to IKF!',
-      content: `Welcome to IKF, {{name}}!
-
-Dear {{name}},
-
-We are excited to have you join our community. Your mobile number is {{mobile}} and we'll be in touch soon.
-
-Best regards,
-IKF Team`,
-      variables: ['name', 'mobile']
+  // Fetch email templates from API
+  const { data: emailTemplates = [] } = useQuery({
+    queryKey: ['emailTemplates'],
+    queryFn: async () => {
+      const response = await fetch('http://localhost:4002/simple-templates');
+      if (!response.ok) throw new Error('Failed to fetch templates');
+      const templates = await response.json();
+      return templates
+        .filter((template: any) => template.channel === 'EMAIL' && template.isActive)
+        .map((template: any) => ({
+          id: template.id,
+          name: template.name,
+          subject: '', // Templates don't have subjects in our current structure
+          content: template.body,
+          variables: []
+        }));
     },
-    {
-      id: '2',
-      name: 'Newsletter',
-      subject: 'IKF Newsletter - {{name}}',
-      content: `IKF Newsletter
-
-Hello {{name}},
-
-Here's our latest newsletter with exciting updates and news.
-
-Contact us: {{mobile}}
-
-Thanks,
-IKF Team`,
-      variables: ['name', 'mobile']
-    },
-    {
-      id: '3',
-      name: 'Reminder',
-      subject: 'Reminder for {{name}}',
-      content: `Important Reminder
-
-Hi {{name}},
-
-This is a friendly reminder about your upcoming appointment. Please contact us at {{mobile}} if you have any questions.
-
-Best regards,
-IKF Team`,
-      variables: ['name', 'mobile']
-    }
-  ];
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
 
   // Fetch contacts for selected tags
   useEffect(() => {
@@ -182,7 +160,7 @@ IKF Team`,
   useEffect(() => {
     if (selectedTemplate) {
       setEmailSubject(selectedTemplate.subject);
-      setEmailContent(selectedTemplate.content);
+      setEmailContent(selectedTemplate.content.replace(/\\n/g, '\n'));
     }
   }, [selectedTemplate]);
 
@@ -231,12 +209,73 @@ IKF Team`,
     );
   };
 
+  const handleCreateTemplate = () => {
+    setShowTemplateModal(true);
+  };
+
+  const handleTemplateCreated = (newTemplate: any) => {
+    // Refresh templates query
+    queryClient.invalidateQueries({ queryKey: ['emailTemplates'] });
+    
+    // Apply the new template
+    setSelectedTemplate({
+      id: newTemplate.id,
+      name: newTemplate.name,
+      subject: '', // Templates don't have subjects in our current structure
+      content: newTemplate.body,
+      variables: []
+    });
+    
+    setEmailContent(newTemplate.body.replace(/\\n/g, '\n'));
+  };
+
+  const handleDeleteTemplate = async (templateId: string, templateName: string) => {
+    if (!window.confirm(`Are you sure you want to delete the template "${templateName}"?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:4002/simple-templates/${templateId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete template');
+      }
+
+      // Refresh templates query
+      queryClient.invalidateQueries({ queryKey: ['emailTemplates'] });
+      
+      // Clear selected template if it was the deleted one
+      if (selectedTemplate?.id === templateId) {
+        setSelectedTemplate(null);
+        setEmailContent('');
+      }
+
+      alert('Template deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting template:', error);
+      alert('Failed to delete template. Please try again.');
+    }
+  };
+
   const handleSendEmails = async () => {
     if (!emailSubject || !emailContent || selectedContacts.length === 0) {
       alert('Please fill in subject, content and select at least one tag');
       return;
     }
 
+    // Check Gmail OAuth before sending
+    setShowOAuthModal(true);
+  };
+
+  const handleOAuthSuccess = async () => {
+    setShowOAuthModal(false);
+    
+    // Proceed with sending emails
     setIsSending(true);
     setSendProgress({ sent: 0, total: selectedContacts.length });
 
@@ -249,6 +288,11 @@ IKF Team`,
     } catch (error) {
       console.error('Error sending emails:', error);
     }
+  };
+
+  const handleOAuthError = (error: string) => {
+    console.error('Gmail OAuth error:', error);
+    alert(`Gmail authentication failed: ${error}`);
   };
 
   const generatePreview = (contact: Contact) => {
@@ -345,29 +389,51 @@ IKF Team`,
           <div className="w-full lg:w-1/3 border-r border-gray-200 flex flex-col min-h-0">
             {/* Template Selection */}
             <div className="p-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                <FileText size={20} className="text-blue-600" />
-                Select Template
-              </h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <FileText size={20} className="text-blue-600" />
+                  Select Template
+                </h3>
+                <button
+                  onClick={handleCreateTemplate}
+                  className="px-3 py-1 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                >
+                  + Create New
+                </button>
+              </div>
               <div className="space-y-2">
-                {emailTemplates.map((template) => (
+                {emailTemplates.map((template: EmailTemplate) => (
                   <div
                     key={template.id}
-                    onClick={() => setSelectedTemplate(template)}
-                    className={`p-3 border rounded-lg cursor-pointer transition-all hover:shadow-sm ${
+                    className={`p-3 border rounded-lg transition-all hover:shadow-sm ${
                       selectedTemplate?.id === template.id
                         ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <div className="flex-1">
+                      <div 
+                        className="flex-1 cursor-pointer"
+                        onClick={() => setSelectedTemplate(template)}
+                      >
                         <h4 className="font-medium text-sm">{template.name}</h4>
                         <p className="text-xs text-gray-600 mt-1 truncate">{template.subject}</p>
                       </div>
-                      {selectedTemplate?.id === template.id && (
-                        <CheckCircle className="text-blue-500 flex-shrink-0" size={16} />
-                      )}
+                      <div className="flex items-center gap-2">
+                        {selectedTemplate?.id === template.id && (
+                          <CheckCircle className="text-blue-500 flex-shrink-0" size={16} />
+                        )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteTemplate(template.id, template.name);
+                          }}
+                          className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
+                          title="Delete template"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -588,6 +654,22 @@ IKF Team`,
           </div>
         </div>
       </div>
+
+      {/* Template Creation Modal */}
+      <TemplateCreationModal
+        isOpen={showTemplateModal}
+        onClose={() => setShowTemplateModal(false)}
+        onTemplateCreated={handleTemplateCreated}
+        channel="EMAIL"
+      />
+
+      {/* Gmail OAuth Check Modal */}
+      <GmailOAuthCheck
+        isOpen={showOAuthModal}
+        onClose={() => setShowOAuthModal(false)}
+        onAuthSuccess={handleOAuthSuccess}
+        onAuthError={handleOAuthError}
+      />
     </div>
   );
 };
