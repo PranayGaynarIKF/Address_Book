@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { containsHtml, truncateHtml, formatContentForHtmlDisplay, formatPlainTextToMailFormat, formatLiteralNewlinesToHtml } from '../utils/htmlUtils';
 
 interface Template {
   id: string;
@@ -111,9 +112,21 @@ const TemplateSelector: React.FC<TemplateSelectorProps> = ({
       {selectedTemplateData && (
         <div className="mt-2 p-3 bg-gray-50 rounded-md">
           <p className="text-xs text-gray-600 mb-1">Preview:</p>
-          <p className="text-sm text-gray-800 whitespace-pre-wrap">
-            {selectedTemplateData.body.replace(/\\n/g, '\n')}
-          </p>
+          {containsHtml(selectedTemplateData.body) ? (
+            <div 
+              className="text-sm text-gray-800 prose prose-sm max-w-none"
+              dangerouslySetInnerHTML={{ 
+                __html: formatContentForHtmlDisplay(selectedTemplateData.body)
+              }}
+            />
+          ) : (
+            <div 
+              className="text-sm text-gray-800 prose prose-sm max-w-none"
+              dangerouslySetInnerHTML={{ 
+                __html: formatLiteralNewlinesToHtml(selectedTemplateData.body)
+              }}
+            />
+          )}
         </div>
       )}
     </div>

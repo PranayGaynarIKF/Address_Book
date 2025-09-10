@@ -353,3 +353,173 @@ code {
 .shadow-glow-indigo {
   box-shadow: 0 0 20px rgba(99, 102, 241, 0.15);
 }
+
+/* React Quill Rich Text Editor Styles */
+.ql-editor {
+  min-height: 200px;
+  max-height: 400px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #374151;
+  overflow-y: auto;
+}
+
+.ql-toolbar {
+  border-top: 1px solid #d1d5db;
+  border-left: 1px solid #d1d5db;
+  border-right: 1px solid #d1d5db;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  background-color: #f9fafb;
+}
+
+.ql-container {
+  border-bottom: 1px solid #d1d5db;
+  border-left: 1px solid #d1d5db;
+  border-right: 1px solid #d1d5db;
+  border-top: none;
+  border-radius: 0 0 6px 6px;
+  font-family: inherit;
+}
+
+.ql-editor.ql-blank::before {
+  color: #9ca3af;
+  font-style: normal;
+  font-size: 14px;
+}
+
+.ql-toolbar .ql-formats {
+  margin-right: 15px;
+}
+
+.ql-toolbar button {
+  padding: 5px;
+  margin: 2px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.ql-toolbar button:hover {
+  background-color: #e5e7eb;
+}
+
+.ql-toolbar button.ql-active {
+  background-color: #3b82f6;
+  color: white;
+}
+
+.ql-toolbar .ql-picker {
+  color: #374151;
+}
+
+.ql-toolbar .ql-picker-options {
+  background-color: white;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+/* Focus styles for the editor container */
+.ql-container:focus-within {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Custom scrollbar for the editor */
+.ql-editor::-webkit-scrollbar {
+  width: 6px;
+}
+
+.ql-editor::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+.ql-editor::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.ql-editor::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Fix unwanted line in ReactQuill */
+.react-quill-wrapper .ql-toolbar {
+  border: none !important;
+  border-bottom: none !important;
+  border-top: none !important;
+  border-left: none !important;
+  border-right: none !important;
+}
+
+.react-quill-wrapper .ql-container {
+  border: none !important;
+  border-top: none !important;
+  border-bottom: none !important;
+  border-left: none !important;
+  border-right: none !important;
+}
+
+/* Remove any extra borders that might cause unwanted lines */
+.react-quill-wrapper .ql-editor {
+  border: none !important;
+}
+
+/* Remove the line between toolbar and editor */
+.react-quill-wrapper .ql-toolbar + .ql-container {
+  border-top: none !important;
+}
+
+/* Ensure no internal borders */
+.react-quill-wrapper .ql-toolbar .ql-formats {
+  border: none !important;
+}
+
+/* Remove all internal separators and lines */
+.react-quill-wrapper .ql-toolbar .ql-separator {
+  border: none !important;
+  border-right: none !important;
+}
+
+.react-quill-wrapper .ql-toolbar button {
+  border: none !important;
+}
+
+/* Make the editor seamless */
+.react-quill-wrapper .ql-toolbar,
+.react-quill-wrapper .ql-container {
+  background: transparent !important;
+}
+
+/* Remove any box shadows that might create lines */
+.react-quill-wrapper .ql-toolbar,
+.react-quill-wrapper .ql-container {
+  box-shadow: none !important;
+}
+
+/* Dynamic editor sizing for template creation */
+.react-quill-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.react-quill-wrapper .ql-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.react-quill-wrapper .ql-editor {
+  flex: 1;
+  min-height: 200px;
+  max-height: none;
+  overflow-y: auto;
+}
+
+/* Maximized mode specific styles */
+.react-quill-wrapper.h-full .ql-editor {
+  min-height: 300px;
+  max-height: none;
+  height: 100%;
+}

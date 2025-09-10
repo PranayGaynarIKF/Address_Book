@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 import { 
   Mail, 
   Users, 
@@ -11,10 +13,13 @@ import {
   Search,
   RefreshCw,
   Eye,
-  Trash2
+  Trash2,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import TemplateCreationModal from './TemplateCreationModal';
 import GmailOAuthManager from './GmailOAuthManager';
+// Removed unused imports
 
 interface Contact {
   id: string;
@@ -55,8 +60,29 @@ const GmailBulkMessaging: React.FC<GmailBulkMessagingProps> = ({ onClose }) => {
   const [showOAuthModal, setShowOAuthModal] = useState(false);
   const [sendProgress, setSendProgress] = useState({ sent: 0, total: 0 });
   const [searchTerm, setSearchTerm] = useState('');
+  const [isMaximized, setIsMaximized] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [isLoadingContacts, setIsLoadingContacts] = useState(false);
+
+  // Quill editor configuration
+  const quillModules = useMemo(() => ({
+    toolbar: [
+      [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+      ['bold', 'italic', 'underline', 'strike'],
+      [{ 'color': [] }, { 'background': [] }],
+      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+      [{ 'indent': '-1'}, { 'indent': '+1' }],
+      [{ 'align': [] }],
+      ['link', 'image'],
+      ['clean']
+    ],
+  }), []);
+
+  const quillFormats = [
+    'header', 'bold', 'italic', 'underline', 'strike',
+    'color', 'background', 'list', 'bullet', 'indent',
+    'align', 'link', 'image'
+  ];
 
   // Fetch tags
   const { data: tags, isLoading: tagsLoading, error: tagsError } = useQuery({
@@ -80,7 +106,7 @@ const GmailBulkMessaging: React.FC<GmailBulkMessagingProps> = ({ onClose }) => {
   });
 
   // Fetch contacts
-  const { data: contacts, isLoading: contactsLoading } = useQuery({
+  const { data: contacts } = useQuery({
     queryKey: ['contacts'],
     queryFn: async () => {
       const response = await fetch('http://localhost:4002/api/contacts');
@@ -94,16 +120,16 @@ const GmailBulkMessaging: React.FC<GmailBulkMessagingProps> = ({ onClose }) => {
   const { data: emailTemplates = [] } = useQuery({
     queryKey: ['emailTemplates'],
     queryFn: async () => {
-      const response = await fetch('http://localhost:4002/simple-templates');
+      const response = await fetch('http://localhost:4002/templates?type=email');
       if (!response.ok) throw new Error('Failed to fetch templates');
-      const templates = await response.json();
-      return templates
+      const data = await response.json();
+      return data
         .filter((template: any) => template.channel === 'EMAIL' && template.isActive)
         .map((template: any) => ({
           id: template.id,
           name: template.name,
           subject: '', // Templates don't have subjects in our current structure
-          content: template.body,
+          content: template.body, // Store raw content, format during selection
           variables: []
         }));
     },
@@ -160,7 +186,16 @@ const GmailBulkMessaging: React.FC<GmailBulkMessagingProps> = ({ onClose }) => {
   useEffect(() => {
     if (selectedTemplate) {
       setEmailSubject(selectedTemplate.subject);
-      setEmailContent(selectedTemplate.content.replace(/\\n/g, '\n'));
+      // Convert literal \n characters to HTML for ReactQuill
+      let formattedContent = selectedTemplate.content;
+      if (formattedContent.includes('\\n')) {
+        formattedContent = formattedContent.replace(/\\n/g, '\n');
+      }
+      // Convert newlines to HTML <br> tags for ReactQuill
+      if (formattedContent.includes('\n')) {
+        formattedContent = formattedContent.replace(/\n/g, '<br>');
+      }
+      setEmailContent(formattedContent);
     }
   }, [selectedTemplate]);
 
@@ -226,7 +261,16 @@ const GmailBulkMessaging: React.FC<GmailBulkMessagingProps> = ({ onClose }) => {
       variables: []
     });
     
-    setEmailContent(newTemplate.body.replace(/\\n/g, '\n'));
+    // Convert literal \n characters to HTML for ReactQuill
+    let formattedContent = newTemplate.body;
+    if (formattedContent.includes('\\n')) {
+      formattedContent = formattedContent.replace(/\\n/g, '\n');
+    }
+    // Convert newlines to HTML <br> tags for ReactQuill
+    if (formattedContent.includes('\n')) {
+      formattedContent = formattedContent.replace(/\n/g, '<br>');
+    }
+    setEmailContent(formattedContent);
   };
 
   const handleDeleteTemplate = async (templateId: string, templateName: string) => {
@@ -235,7 +279,7 @@ const GmailBulkMessaging: React.FC<GmailBulkMessagingProps> = ({ onClose }) => {
     }
 
     try {
-      const response = await fetch(`http://localhost:4002/simple-templates/${templateId}`, {
+      const response = await fetch(`http://localhost:4002/templates/${templateId}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -531,19 +575,36 @@ const GmailBulkMessaging: React.FC<GmailBulkMessagingProps> = ({ onClose }) => {
               </div>
 
               {/* Content */}
-              <div className="flex-1 flex flex-col">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Content</label>
-                <div className="flex-1 border border-gray-300 rounded-lg overflow-hidden">
-                  <textarea
-                    value={emailContent}
-                    onChange={(e) => setEmailContent(e.target.value)}
-                    className="w-full h-full px-3 py-2 border-0 rounded-lg focus:outline-none resize-none text-sm"
-                    placeholder="Enter email content... Use {{name}}, {{mobile}}, {{email}} for dynamic content. Write your message in plain text - it will be automatically formatted as HTML when sent."
-                    style={{ minHeight: '200px' }}
-                  />
+              <div className={`flex-1 flex flex-col ${isMaximized ? 'fixed inset-0 z-50 bg-white p-4' : ''}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-700">Content</label>
+                  <button
+                    type="button"
+                    onClick={() => setIsMaximized(!isMaximized)}
+                    className="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+                    title={isMaximized ? 'Minimize editor' : 'Maximize editor'}
+                  >
+                    {isMaximized ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                  </button>
+                </div>
+                <div className={`flex-1 ${isMaximized ? 'h-full' : 'border border-gray-300 rounded-lg overflow-hidden'}`}>
+                  <div className="react-quill-wrapper h-full">
+                    <ReactQuill
+                      value={emailContent}
+                      onChange={setEmailContent}
+                      modules={quillModules}
+                      formats={quillFormats}
+                      placeholder="Enter email content... Use {name}, {mobile}, {email} for dynamic content. Format your message with rich text - it will be sent as HTML."
+                      style={{ 
+                        height: isMaximized ? 'calc(100vh - 120px)' : '200px',
+                        border: 'none'
+                      }}
+                      theme="snow"
+                    />
+                  </div>
                 </div>
                 <div className="mt-2 text-xs text-gray-500">
-                  💡 Tip: Write your message in plain text. The system will automatically convert it to beautiful HTML format when sending.
+                  💡 Tip: Use the rich text editor to format your message. Dynamic content like {'{name}'}, {'{mobile}'}, {'{email}'} will be replaced with actual contact details.
                 </div>
               </div>
 

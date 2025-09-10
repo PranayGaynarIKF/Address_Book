@@ -1,5 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
+import { formatPlainTextToMailFormat, formatLiteralNewlinesToHtml } from '../utils/htmlUtils';
 import { 
   Mail, 
   Users, 
@@ -13,7 +16,9 @@ import {
   AlertCircle,
   Clock,
   BarChart3,
-  X
+  X,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 
 interface TagData {
@@ -65,11 +70,32 @@ const GmailCampaignManager: React.FC = () => {
   const [campaignName, setCampaignName] = useState('');
   const [emailSubject, setEmailSubject] = useState('');
   const [emailContent, setEmailContent] = useState('');
+  const [isMaximized, setIsMaximized] = useState(false);
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [showComposeModal, setShowComposeModal] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
   const [scheduledDate, setScheduledDate] = useState('');
   const [scheduledTime, setScheduledTime] = useState('');
+
+  // Quill editor configuration
+  const quillModules = useMemo(() => ({
+    toolbar: [
+      [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+      ['bold', 'italic', 'underline', 'strike'],
+      [{ 'color': [] }, { 'background': [] }],
+      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+      [{ 'indent': '-1'}, { 'indent': '+1' }],
+      [{ 'align': [] }],
+      ['link', 'image'],
+      ['clean']
+    ],
+  }), []);
+
+  const quillFormats = [
+    'header', 'bold', 'italic', 'underline', 'strike',
+    'color', 'background', 'list', 'bullet', 'indent',
+    'align', 'link', 'image'
+  ];
 
   // API Configuration
   const API_BASE = 'http://localhost:4002';
@@ -203,7 +229,17 @@ const GmailCampaignManager: React.FC = () => {
     if (template) {
       setSelectedTemplate(templateId);
       setEmailSubject(template.subject);
-      setEmailContent(template.content);
+      
+      // Convert literal \n characters to HTML for ReactQuill
+      let formattedContent = template.content;
+      if (formattedContent.includes('\\n')) {
+        formattedContent = formattedContent.replace(/\\n/g, '\n');
+      }
+      // Convert newlines to HTML <br> tags for ReactQuill
+      if (formattedContent.includes('\n')) {
+        formattedContent = formattedContent.replace(/\n/g, '<br>');
+      }
+      setEmailContent(formattedContent);
     }
   };
 
@@ -601,17 +637,37 @@ const GmailCampaignManager: React.FC = () => {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Email Content
-                </label>
-                <textarea
-                  value={emailContent}
-                  onChange={(e) => setEmailContent(e.target.value)}
-                  placeholder="Enter email content..."
-                  rows={8}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
-                />
+              <div className={`flex-1 flex flex-col ${isMaximized ? 'fixed inset-0 z-50 bg-white p-4' : ''}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-700">Email Content</label>
+                  <button
+                    type="button"
+                    onClick={() => setIsMaximized(!isMaximized)}
+                    className="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+                    title={isMaximized ? 'Minimize editor' : 'Maximize editor'}
+                  >
+                    {isMaximized ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                  </button>
+                </div>
+                <div className={`flex-1 ${isMaximized ? 'h-full' : 'border border-gray-300 rounded-lg overflow-hidden'}`}>
+                  <div className="react-quill-wrapper h-full">
+                    <ReactQuill
+                      value={emailContent}
+                      onChange={setEmailContent}
+                      modules={quillModules}
+                      formats={quillFormats}
+                      placeholder="Enter email content... Use {name}, {mobile}, {email} for dynamic content. Format your message with rich text - it will be sent as HTML."
+                      style={{ 
+                        height: isMaximized ? 'calc(100vh - 120px)' : '200px',
+                        border: 'none'
+                      }}
+                      theme="snow"
+                    />
+                  </div>
+                </div>
+                <div className="mt-2 text-xs text-gray-500">
+                  💡 Tip: Use the rich text editor to format your message. Dynamic content like {'{name}'}, {'{mobile}'}, {'{email}'} will be replaced with actual contact details.
+                </div>
               </div>
 
               {/* Scheduling */}

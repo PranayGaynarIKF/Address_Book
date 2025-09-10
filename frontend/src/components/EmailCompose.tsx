@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 import { 
   Send, 
   Paperclip, 
@@ -11,13 +13,16 @@ import {
   AlertCircle,
   CheckCircle,
   Users,
-  Tag
+  Tag,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import TemplateSelector from './TemplateSelector';
 import TemplateCreationModal from './TemplateCreationModal';
 import GmailOAuthManager from './GmailOAuthManager';
 import GmailAuthStatus from './GmailAuthStatus';
 import { useGmailAuth } from '../hooks/useGmailAuth';
+import { formatPlainTextToMailFormat, formatLiteralNewlinesToHtml } from '../utils/htmlUtils';
 
 interface EmailComposeProps {
   isOpen: boolean;
@@ -79,6 +84,27 @@ const EmailCompose: React.FC<EmailComposeProps> = ({ isOpen, onClose, replyTo })
   const [selectedTemplateData, setSelectedTemplateData] = useState<any>(null);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showOAuthModal, setShowOAuthModal] = useState(false);
+  const [isMaximized, setIsMaximized] = useState(false);
+
+  // Quill editor configuration
+  const quillModules = useMemo(() => ({
+    toolbar: [
+      [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+      ['bold', 'italic', 'underline', 'strike'],
+      [{ 'color': [] }, { 'background': [] }],
+      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+      [{ 'indent': '-1'}, { 'indent': '+1' }],
+      [{ 'align': [] }],
+      ['link', 'image'],
+      ['clean']
+    ],
+  }), []);
+
+  const quillFormats = [
+    'header', 'bold', 'italic', 'underline', 'strike',
+    'color', 'background', 'list', 'bullet', 'indent',
+    'align', 'link', 'image'
+  ];
 
   useEffect(() => {
     if (isOpen) {
@@ -212,10 +238,19 @@ const EmailCompose: React.FC<EmailComposeProps> = ({ isOpen, onClose, replyTo })
   const handleTemplateChange = (template: any) => {
     setSelectedTemplateData(template);
     if (template) {
-      // Apply template to content
+      // Convert literal \n characters to HTML for ReactQuill
+      let formattedContent = template.body;
+      if (formattedContent.includes('\\n')) {
+        formattedContent = formattedContent.replace(/\\n/g, '\n');
+      }
+      // Convert newlines to HTML <br> tags for ReactQuill
+      if (formattedContent.includes('\n')) {
+        formattedContent = formattedContent.replace(/\n/g, '<br>');
+      }
+      
       setDraft(prev => ({
         ...prev,
-        content: template.body.replace(/\\n/g, '\n')
+        content: formattedContent
       }));
     }
   };
@@ -885,17 +920,36 @@ const EmailCompose: React.FC<EmailComposeProps> = ({ isOpen, onClose, replyTo })
             />
 
             {/* Message Content */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Message <span className="text-red-500">*</span>
-              </label>
-              <textarea
-                value={draft.content}
-                onChange={(e) => handleInputChange('content', e.target.value)}
-                rows={12}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
-                placeholder="Type your message here..."
-              />
+            <div className={`flex-1 flex flex-col ${isMaximized ? 'fixed inset-0 z-50 bg-white p-4' : ''}`}>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Message <span className="text-red-500">*</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setIsMaximized(!isMaximized)}
+                  className="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+                  title={isMaximized ? 'Minimize editor' : 'Maximize editor'}
+                >
+                  {isMaximized ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                </button>
+              </div>
+              <div className={`flex-1 ${isMaximized ? 'h-full' : 'border border-gray-300 rounded-md focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500'}`}>
+                <div className="react-quill-wrapper h-full">
+                  <ReactQuill
+                    value={draft.content}
+                    onChange={(content) => handleInputChange('content', content)}
+                    modules={quillModules}
+                    formats={quillFormats}
+                    placeholder="Type your message here..."
+                    style={{ 
+                      height: isMaximized ? 'calc(100vh - 120px)' : '300px',
+                      border: 'none'
+                    }}
+                    theme="snow"
+                  />
+                </div>
+              </div>
             </div>
           </form>
         </div>
