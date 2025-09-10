@@ -437,8 +437,43 @@ export class EmailManagerService {
               gmailService.initializeOAuthClient(config.clientId, config.clientSecret, config.redirectUri);
               
               // Also get and set the OAuth tokens
-              const authToken = await this.emailDatabaseService.getValidEmailAuthToken(userId, 'GMAIL');
+              let authToken = await this.emailDatabaseService.getValidEmailAuthToken(userId, 'GMAIL');
               if (authToken && authToken.accessToken) {
+                // Check if token is expired or about to expire (within 5 minutes)
+                const now = new Date();
+                const expiresAt = new Date(authToken.expiresAt);
+                const timeUntilExpiry = expiresAt.getTime() - now.getTime();
+                const fiveMinutes = 5 * 60 * 1000; // 5 minutes in milliseconds
+                
+                // If token is expired or about to expire, try to refresh it
+                if (timeUntilExpiry < fiveMinutes) {
+                  this.logger.log(`Token expires in ${Math.round(timeUntilExpiry / 1000 / 60)} minutes, attempting refresh...`);
+                  
+                  if (authToken.refreshToken) {
+                    try {
+                      // Refresh the token
+                      const refreshResult = await this.refreshServiceToken('GMAIL', authToken.refreshToken);
+                      
+                      // Update the token in database
+                      await this.emailDatabaseService.refreshEmailAuthToken(authToken.id, {
+                        accessToken: refreshResult.accessToken,
+                        refreshToken: refreshResult.refreshToken || authToken.refreshToken,
+                        expiresAt: refreshResult.expiresAt,
+                        scope: JSON.stringify(refreshResult.scope)
+                      });
+                      
+                      // Get the updated token
+                      authToken = await this.emailDatabaseService.getValidEmailAuthToken(userId, 'GMAIL');
+                      this.logger.log('Token refreshed successfully');
+                    } catch (refreshError) {
+                      this.logger.error('Failed to refresh token:', refreshError);
+                      throw new Error('Token refresh failed - please re-authenticate');
+                    }
+                  } else {
+                    throw new Error('No refresh token available - please re-authenticate');
+                  }
+                }
+                
                 // Set the access token on the OAuth client
                 if (gmailService.oauth2Client) {
                   gmailService.oauth2Client.setCredentials({

@@ -77,7 +77,7 @@ export class UsersService {
 
     // Update last login using raw SQL
     await this.prisma.$executeRaw`
-      UPDATE [app].[User] SET lastLoginAt = ${new Date()} WHERE id = ${user.id}
+      UPDATE [app].[User] SET lastLoginAt = GETUTCDATE() WHERE id = ${user.id}
     `;
 
     const { password: _, ...userWithoutPassword } = user;

@@ -56,7 +56,16 @@ export class GmailService implements IEmailService {
       return {
         accessToken: tokens.access_token,
         refreshToken: tokens.refresh_token,
-        expiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : new Date(Date.now() + 3600000),
+        expiresAt: (() => {
+          const now = new Date();
+          if (tokens.expiry_date) {
+            const googleExpiry = new Date(tokens.expiry_date);
+            const calculatedExpiry = new Date(now.getTime() + 3600000);
+            return googleExpiry > now ? googleExpiry : calculatedExpiry;
+          } else {
+            return new Date(now.getTime() + 3600000);
+          }
+        })(),
         scope: JSON.stringify(this.SCOPES), // Convert array to JSON string
         userId: userInfo.data.emailAddress || undefined,
         email: userInfo.data.emailAddress || undefined
@@ -76,10 +85,22 @@ export class GmailService implements IEmailService {
         throw new Error('Failed to refresh access token');
       }
 
+      // FIXED: Use Google's expiry_date instead of calculating
+      const now = new Date();
+      const expiresAt = (credentials as any).expiry_date ? new Date((credentials as any).expiry_date) : new Date(now.getTime() + 3600000);
+      
+      // Log timing for debugging
+      console.log('🔄 Token refresh timing debug:');
+      console.log('   Current time (UTC):', now.toISOString());
+      console.log('   Google expiry_date:', (credentials as any).expiry_date);
+      console.log('   Google expires_in:', (credentials as any).expires_in);
+      console.log('   Using expiry_date (UTC):', expiresAt.toISOString());
+      console.log('   Time until expiry (minutes):', Math.round((expiresAt.getTime() - now.getTime()) / 1000 / 60));
+
       return {
         accessToken: credentials.access_token,
         refreshToken: refreshToken,
-        expiresAt: credentials.expiry_date ? new Date(credentials.expiry_date) : new Date(Date.now() + 3600000),
+        expiresAt: expiresAt, // Fixed timezone calculation
         scope: JSON.stringify(this.SCOPES) // Convert array to JSON string
       };
     } catch (error) {

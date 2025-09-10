@@ -44,7 +44,7 @@ export class ContactsService {
         ${contactId}, ${data.name}, ${data.companyName}, 
         ${email || null}, ${mobileE164 || null}, ${data.relationshipType || null}, 
         0, ${qualityScore}, ${data.sourceSystem}, ${data.sourceRecordId}, 
-        GETDATE(), GETDATE()
+        GETUTCDATE(), GETUTCDATE()
       )
     `;
 

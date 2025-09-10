@@ -31,7 +31,7 @@ export class StagingService {
           ${contact.dataOwnerName || null}, 
           ${contact.sourceSystem}, 
           ${contact.sourceRecordId},
-          GETDATE()
+          GETUTCDATE()
         )
       `;
       
@@ -56,7 +56,7 @@ export class StagingService {
       VALUES (
         NEWID(), 
         ${sourceSystem}, 
-        GETDATE(), 
+        GETUTCDATE(), 
         0, 0, 0, 0, 0, NULL
       )
     `;

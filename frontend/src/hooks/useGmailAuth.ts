@@ -16,6 +16,7 @@ interface UseGmailAuthReturn {
   getOAuthUrl: () => Promise<string>;
   refreshTokens: () => Promise<boolean>;
   clearAuth: () => void;
+  clearCache: () => void;
 }
 
 export const useGmailAuth = (): UseGmailAuthReturn => {
@@ -28,7 +29,10 @@ export const useGmailAuth = (): UseGmailAuthReturn => {
     setAuthStatus(prev => ({ ...prev, isLoading: true, error: undefined }));
     
     try {
-      const status = await gmailAuthService.checkAuthStatus(forceRefresh);
+      // If forceRefresh is true, clear cache and get fresh status
+      const status = forceRefresh 
+        ? await gmailAuthService.forceRefreshAuthStatus()
+        : await gmailAuthService.checkAuthStatus(forceRefresh);
       
       setAuthStatus({
         isAuthenticated: status.isAuthenticated,
@@ -108,6 +112,10 @@ export const useGmailAuth = (): UseGmailAuthReturn => {
     });
   }, []);
 
+  const clearCache = useCallback(() => {
+    gmailAuthService.clearAuthStatus();
+  }, []);
+
   // Check auth status on mount
   useEffect(() => {
     checkAuth();
@@ -127,6 +135,7 @@ export const useGmailAuth = (): UseGmailAuthReturn => {
     checkAuth,
     getOAuthUrl,
     refreshTokens,
-    clearAuth
+    clearAuth,
+    clearCache
   };
 };

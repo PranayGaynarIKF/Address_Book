@@ -53,13 +53,29 @@ const GmailOAuthManager: React.FC<GmailOAuthManagerProps> = ({
 
       // Listen for the popup to close or receive message
       const checkClosed = setInterval(() => {
-        if (popup.closed) {
+        try {
+          if (popup.closed) {
+            clearInterval(checkClosed);
+            setIsStartingOAuth(false);
+            // Check if authentication was successful
+            checkAuthStatus();
+          }
+        } catch (error) {
+          // Handle CORS policy errors
+          console.warn('Popup check blocked by CORS policy, using fallback method');
           clearInterval(checkClosed);
           setIsStartingOAuth(false);
           // Check if authentication was successful
           checkAuthStatus();
         }
       }, 1000);
+
+      // Set a timeout to check auth status even if popup doesn't close properly
+      setTimeout(() => {
+        clearInterval(checkClosed);
+        setIsStartingOAuth(false);
+        checkAuthStatus();
+      }, 10000); // 10 seconds timeout
 
       // Listen for messages from popup
       const messageHandler = (event: MessageEvent) => {
@@ -91,26 +107,36 @@ const GmailOAuthManager: React.FC<GmailOAuthManagerProps> = ({
 
   const checkAuthStatus = async () => {
     try {
-      // Check if we have valid tokens by calling a test endpoint
-      const response = await fetch('http://localhost:4002/api/mail-accounts', {
+      console.log('🔍 GmailOAuthManager: Checking auth status...');
+      
+      // Check if we have valid tokens by calling the auth status endpoint
+      const response = await fetch('http://localhost:4002/email/auth/GMAIL/status', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
+          'x-api-key': 'my-secret-api-key-123'
         }
       });
 
+      console.log('🔍 GmailOAuthManager: Auth status response:', response.status);
+
       if (response.ok) {
         const data = await response.json();
-        if (data.data && data.data.length > 0) {
-          // We have authenticated accounts
+        console.log('🔍 GmailOAuthManager: Auth status data:', data);
+        
+        if (data.isAuthenticated) {
+          console.log('🔍 GmailOAuthManager: User is authenticated, calling onAuthSuccess');
           onAuthSuccess();
         } else {
-          onAuthError('No authenticated Gmail accounts found');
+          console.log('🔍 GmailOAuthManager: User is not authenticated, calling onAuthError');
+          onAuthError('Gmail authentication required');
         }
       } else {
+        console.log('🔍 GmailOAuthManager: Auth status check failed:', response.status);
         onAuthError('Authentication check failed');
       }
     } catch (error) {
+      console.error('🔍 GmailOAuthManager: Auth status check error:', error);
       onAuthError('Failed to check authentication status');
     }
   };

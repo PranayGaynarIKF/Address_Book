@@ -69,7 +69,7 @@ const EmailCompose: React.FC<EmailComposeProps> = ({ isOpen, onClose, replyTo })
   });
   
   // Gmail authentication hook
-  const { authStatus, checkAuth, getOAuthUrl } = useGmailAuth();
+  const { authStatus, checkAuth, getOAuthUrl, clearCache } = useGmailAuth();
   
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string>('');
@@ -319,11 +319,18 @@ const EmailCompose: React.FC<EmailComposeProps> = ({ isOpen, onClose, replyTo })
     if (!validateDraft()) return;
 
     console.log('🔍 EmailCompose: Starting authentication check...');
+    console.log('🔍 EmailCompose: Current authStatus before check:', authStatus);
     
-    // Check Gmail authentication status first
-    const isAuthenticated = await checkAuth();
+    // Clear cache to ensure fresh authentication check
+    console.log('🔍 EmailCompose: Clearing cache...');
+    clearCache();
+    
+    // Check Gmail authentication status first (force refresh to bypass cache)
+    console.log('🔍 EmailCompose: Calling checkAuth(true)...');
+    const isAuthenticated = await checkAuth(true);
     
     console.log('🔍 EmailCompose: Authentication result:', isAuthenticated);
+    console.log('🔍 EmailCompose: Current authStatus after check:', authStatus);
     
     if (!isAuthenticated) {
       console.log('🔍 EmailCompose: Not authenticated, showing OAuth modal');

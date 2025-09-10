@@ -117,7 +117,16 @@ export class GoogleAuthService {
         serviceType: 'GMAIL' as EmailServiceType, // Fix: Use correct type
         accessToken: tokens.access_token,
         refreshToken: tokens.refresh_token || '',
-        expiresAt: new Date(Date.now() + (tokens.expires_in * 1000)),
+        expiresAt: (() => {
+          const now = new Date();
+          if (tokens.expiry_date) {
+            const googleExpiry = new Date(tokens.expiry_date);
+            const calculatedExpiry = new Date(now.getTime() + (tokens.expires_in * 1000));
+            return googleExpiry > now ? googleExpiry : calculatedExpiry;
+          } else {
+            return new Date(now.getTime() + (tokens.expires_in * 1000));
+          }
+        })(),
         scope: tokens.scope ? JSON.parse(tokens.scope) : [
           'https://www.googleapis.com/auth/gmail.readonly',
           'https://www.googleapis.com/auth/gmail.send',

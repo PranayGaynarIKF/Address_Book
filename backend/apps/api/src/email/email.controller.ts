@@ -324,7 +324,7 @@ export class EmailController {
   ) {
     try {
       // Set expiry to 1 hour from now
-      const expiresAt = new Date(Date.now() + 3600000);
+      const expiresAt = new Date(Date.now() + 3600000); // This is for testing, not OAuth
       
       const token = await this.emailDatabaseService.saveEmailAuthToken({
         userId: body.userId,
@@ -1087,7 +1087,7 @@ export class EmailController {
         serviceType: 'GMAIL',
         accessToken: 'YOUR_ACCESS_TOKEN_HERE',
         refreshToken: 'YOUR_REFRESH_TOKEN_HERE',
-        expiresAt: new Date(Date.now() + 3600000), // 1 hour from now
+        expiresAt: new Date(Date.now() + 3600000), // 1 hour from now - for testing
         scope: JSON.stringify([
           'https://www.googleapis.com/auth/gmail.readonly',
           'https://www.googleapis.com/auth/gmail.send',
@@ -1326,6 +1326,39 @@ export class EmailController {
         needsRefresh,
         timeUntilExpiry: expiresAt ? Math.round((expiresAt.getTime() - now.getTime()) / 1000 / 60) : 'N/A'
       });
+
+      // If token needs refresh, try to refresh it automatically
+      if (needsRefresh && authToken.refreshToken) {
+        try {
+          console.log('🔄 Token needs refresh, attempting automatic refresh...');
+          const refreshResult = await this.emailManagerService.refreshServiceToken('GMAIL', authToken.refreshToken);
+          
+          // Update the token in database
+          await this.emailDatabaseService.refreshEmailAuthToken(authToken.id, {
+            accessToken: refreshResult.accessToken,
+            refreshToken: refreshResult.refreshToken || authToken.refreshToken,
+            expiresAt: refreshResult.expiresAt,
+            scope: JSON.stringify(refreshResult.scope)
+          });
+          
+          console.log('✅ Token refreshed successfully');
+          
+          // Get the updated token
+          const updatedToken = await this.emailDatabaseService.getValidEmailAuthToken(userId, 'GMAIL');
+          if (updatedToken) {
+            return {
+              isAuthenticated: true,
+              email: updatedToken.email,
+              expiresAt: updatedToken.expiresAt?.toISOString(),
+              needsRefresh: false,
+              message: 'Gmail is authenticated (token refreshed)'
+            };
+          }
+        } catch (refreshError) {
+          console.error('❌ Failed to refresh token:', refreshError);
+          // Continue with original logic if refresh fails
+        }
+      }
 
       return {
         isAuthenticated: !isExpired,

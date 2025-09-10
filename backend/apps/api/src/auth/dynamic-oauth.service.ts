@@ -107,13 +107,40 @@ export class DynamicOAuthService {
       const profile = await gmail.users.getProfile({ userId: 'me' });
       const userEmail = profile.data.emailAddress;
 
-      // Prepare token data for database - use the database service interface
+      // Prepare token data for database - FIXED: Use Google's expiry_date, but handle timezone issues
+      const now = new Date();
+      let expiresAt;
+      if ((tokens as any).expiry_date) {
+        // Google's expiry_date might be in a different timezone, so let's be safe
+        const googleExpiry = new Date((tokens as any).expiry_date);
+        const calculatedExpiry = new Date(now.getTime() + (((tokens as any).expires_in || 3600) * 1000));
+        
+        // Use the one that makes more sense (not in the past)
+        if (googleExpiry > now) {
+          expiresAt = googleExpiry;
+        } else {
+          expiresAt = calculatedExpiry;
+        }
+      } else {
+        expiresAt = new Date(now.getTime() + (((tokens as any).expires_in || 3600) * 1000));
+      }
+      
+      // Log timing for debugging
+      console.log('🕐 Token timing debug:');
+      console.log('   Current time (UTC):', now.toISOString());
+      console.log('   Google expiry_date:', (tokens as any).expiry_date);
+      console.log('   Google expires_in:', (tokens as any).expires_in);
+      console.log('   expiry_date (UTC):', (tokens as any).expiry_date ? new Date((tokens as any).expiry_date).toISOString() : 'NOT PROVIDED');
+      console.log('   Using expiry_date:', !!(tokens as any).expiry_date);
+      console.log('   Final expiry (UTC):', expiresAt.toISOString());
+      console.log('   Time until expiry (minutes):', Math.round((expiresAt.getTime() - now.getTime()) / 1000 / 60));
+      
       const tokenData: Omit<EmailAuthToken, 'createdAt' | 'updatedAt' | 'id'> = {
         userId,
         serviceType: 'GMAIL' as EmailServiceType,
         accessToken: tokens.access_token || '',
         refreshToken: tokens.refresh_token || '',
-        expiresAt: new Date(Date.now() + (((tokens as any).expires_in || 3600) * 1000)), // Cast to access expires_in
+        expiresAt: expiresAt, // Fixed timezone calculation
         scope: JSON.stringify([
           'https://www.googleapis.com/auth/gmail.readonly',
           'https://www.googleapis.com/auth/gmail.send',
@@ -185,7 +212,16 @@ export class DynamicOAuthService {
         serviceType: 'GMAIL' as EmailServiceType,
         accessToken: tokens.access_token || '',
         refreshToken: tokens.refresh_token || '',
-        expiresAt: new Date(Date.now() + (((tokens as any).expires_in || 3600) * 1000)),
+        expiresAt: (() => {
+          const now = new Date();
+          if ((tokens as any).expiry_date) {
+            const googleExpiry = new Date((tokens as any).expiry_date);
+            const calculatedExpiry = new Date(now.getTime() + (((tokens as any).expires_in || 3600) * 1000));
+            return googleExpiry > now ? googleExpiry : calculatedExpiry;
+          } else {
+            return new Date(now.getTime() + (((tokens as any).expires_in || 3600) * 1000));
+          }
+        })(),
         scope: JSON.stringify([
           'https://www.googleapis.com/auth/gmail.readonly',
           'https://www.googleapis.com/auth/gmail.send',

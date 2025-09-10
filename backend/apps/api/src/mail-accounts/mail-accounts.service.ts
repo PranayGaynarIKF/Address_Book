@@ -47,7 +47,7 @@ export class MailAccountsService {
       // Use raw SQL instead of Prisma
       const result = await this.prisma.$queryRaw`
         INSERT INTO "app"."MailAccounts" (id, name, email, serviceType, encryptedPassword, clientId, encryptedClientSecret, redirectUri, isActive, isEncrypted, syncStatus, createdAt, updatedAt)
-        VALUES (NEWID(), ${name}, ${email}, ${serviceType}, ${encryptedPassword}, ${clientId}, ${encryptedClientSecret}, ${redirectUri}, 1, 1, 'pending', GETDATE(), GETDATE());
+        VALUES (NEWID(), ${name}, ${email}, ${serviceType}, ${encryptedPassword}, ${clientId}, ${encryptedClientSecret}, ${redirectUri}, 1, 1, 'pending', GETUTCDATE(), GETUTCDATE());
         
         SELECT SCOPE_IDENTITY() as id;
       `;
@@ -347,10 +347,31 @@ export class MailAccountsService {
       const now = new Date();
       console.log('   Current server time:', now.toISOString());
       console.log('   expires_in value:', tokens.expires_in, 'seconds');
+      console.log('   expiry_date value:', tokens.expiry_date, 'milliseconds');
+      console.log('   expiry_date (UTC):', tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : 'NOT PROVIDED');
       
-      // Calculate expiration time (Minimal Example Reference)
-      const expiresAt = new Date(now.getTime() + tokens.expires_in * 1000);
+      // FIXED: Use Google's expiry_date, but handle timezone issues
+      let expiresAt;
+      if (tokens.expiry_date) {
+        // Google's expiry_date might be in a different timezone, so let's be safe
+        const googleExpiry = new Date(tokens.expiry_date);
+        const calculatedExpiry = new Date(now.getTime() + (tokens.expires_in * 1000));
+        
+        // Use the one that makes more sense (not in the past)
+        if (googleExpiry > now) {
+          expiresAt = googleExpiry;
+          console.log('   Using Google expiry_date');
+        } else {
+          expiresAt = calculatedExpiry;
+          console.log('   Google expiry_date is in past, using calculated expiry');
+        }
+      } else {
+        expiresAt = new Date(now.getTime() + (tokens.expires_in * 1000));
+        console.log('   No expiry_date provided, using calculated expiry');
+      }
+      console.log('   Using expiry_date:', !!tokens.expiry_date);
       console.log('   Expected expiration:', expiresAt.toISOString());
+      console.log('   Time until expiry (minutes):', Math.round((expiresAt.getTime() - now.getTime()) / 1000 / 60));
       
       // Validate expiration (Minimal Example Reference)
       if (expiresAt <= now) {
@@ -413,7 +434,7 @@ export class MailAccountsService {
           'https://www.googleapis.com/auth/gmail.send',
           'https://www.googleapis.com/auth/gmail.modify',
           'https://www.googleapis.com/auth/gmail.labels'
-        ])}, 1, GETDATE(), GETDATE())
+        ])}, 1, GETUTCDATE(), GETUTCDATE())
       `;
       console.log('✅ Email Service Configuration saved!');
       
@@ -431,7 +452,7 @@ export class MailAccountsService {
       console.log('   Invalidating existing tokens...');
       await this.prisma.$executeRaw`
         UPDATE [app].[EmailAuthTokens]
-        SET [is_valid] = 0, [updated_at] = GETDATE()
+        SET [is_valid] = 0, [updated_at] = GETUTCDATE()
         WHERE [user_id] = ${userId} AND [service_type] = ${serviceType}
       `;
       console.log('   Existing tokens invalidated');
@@ -444,12 +465,12 @@ export class MailAccountsService {
       await this.prisma.$executeRaw`
         INSERT INTO [app].[EmailAuthTokens]
         ([id], [user_id], [service_type], [access_token], [refresh_token], [expires_at], [scope], [email], [is_valid], [created_at], [updated_at])
-        VALUES (${tokenId}, ${userId}, ${serviceType}, ${tokens.access_token}, ${tokens.refresh_token || ''}, ${expiresAt}, ${JSON.stringify([
+        VALUES (${tokenId}, ${userId}, ${serviceType}, ${tokens.access_token}, ${tokens.refresh_token || ''}, DATEADD(second, ${Math.floor(expiresAt.getTime() / 1000)}, '1970-01-01 00:00:00'), ${JSON.stringify([
           'https://www.googleapis.com/auth/gmail.readonly',
           'https://www.googleapis.com/auth/gmail.send',
           'https://www.googleapis.com/auth/gmail.modify',
           'https://www.googleapis.com/auth/gmail.labels'
-        ])}, ${userEmail}, 1, GETDATE(), GETDATE())
+        ])}, ${userEmail}, 1, GETUTCDATE(), GETUTCDATE())
       `;
       console.log('✅ Email Auth Token saved!');
       console.log(`📧 Gmail account connected: ${userEmail}`);
@@ -594,7 +615,7 @@ export class MailAccountsService {
       }
 
       // Always update updatedAt
-      updateQuery += `updatedAt = GETDATE() `;
+      updateQuery += `updatedAt = GETUTCDATE() `;
       updateQuery += `WHERE id = ?`;
       updateValues.push(id);
 
@@ -639,7 +660,7 @@ export class MailAccountsService {
       // Update status
       await this.prisma.$executeRaw`
         UPDATE "app"."MailAccounts" 
-        SET isActive = ${newStatus ? 1 : 0}, updatedAt = GETDATE()
+        SET isActive = ${newStatus ? 1 : 0}, updatedAt = GETUTCDATE()
         WHERE id = ${id}
       `;
 
@@ -685,7 +706,7 @@ export class MailAccountsService {
       // Update last sync time and status
       await this.prisma.$executeRaw`
         UPDATE "app"."MailAccounts" 
-        SET lastSync = GETDATE(), syncStatus = ${testResult.success ? 'success' : 'error'}, updatedAt = GETDATE()
+        SET lastSync = GETUTCDATE(), syncStatus = ${testResult.success ? 'success' : 'error'}, updatedAt = GETUTCDATE()
         WHERE id = ${id}
       `;
 

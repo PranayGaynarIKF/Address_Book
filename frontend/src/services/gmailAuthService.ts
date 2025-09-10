@@ -157,6 +157,18 @@ class GmailAuthService {
   }
 
   /**
+   * Force clear cache and get fresh auth status
+   */
+  async forceRefreshAuthStatus(): Promise<GmailAuthStatus> {
+    console.log('🔄 GmailAuthService: Force clearing cache and getting fresh status...');
+    this.authStatus = null;
+    this.lastCheck = 0;
+    const result = await this.checkAuthStatus(true);
+    console.log('🔄 GmailAuthService: Force refresh result:', result);
+    return result;
+  }
+
+  /**
    * Check if tokens need refresh based on expiration time
    */
   needsTokenRefresh(): boolean {

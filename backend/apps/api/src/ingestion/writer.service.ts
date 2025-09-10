@@ -70,7 +70,7 @@ export class WriterService {
               mobileno = COALESCE(${sanitizePhone(normPhoneE164 ?? rawPhone)}, mobileno),
               relationship_type = COALESCE(${relationshipType}, relationship_type),
               data_quality_score = COALESCE(${qualityScore}, data_quality_score),
-              updated_at = GETDATE()
+              updated_at = GETUTCDATE()
             WHERE id = ${existing[0].id}
           `;
           updated++;
@@ -87,7 +87,7 @@ export class WriterService {
               ${normEmail ?? rawEmail}, ${sanitizePhone(normPhoneE164 ?? rawPhone)}, 
               ${relationshipType}, ${sourceSystem}, 
               ${sourceRecordId}, ${qualityScore}, 
-              1, GETDATE(), GETDATE()
+              1, GETUTCDATE(), GETUTCDATE()
             )
           `;
           inserted++;
@@ -122,7 +122,7 @@ export class WriterService {
           const ownerId = require('crypto').randomUUID();
           await this.prisma.$executeRaw`
             INSERT INTO [app].[Owners] (id, name, is_active, created_at, updated_at)
-            VALUES (${ownerId}, ${ownerName}, 1, GETDATE(), GETDATE())
+            VALUES (${ownerId}, ${ownerName}, 1, GETUTCDATE(), GETUTCDATE())
           `;
           owner = [{ id: ownerId }];
         }
@@ -145,7 +145,7 @@ export class WriterService {
             // Create association using raw SQL
             await this.prisma.$executeRaw`
               INSERT INTO [app].[ContactOwners] (contact_id, owner_id, created_at, updated_at)
-              VALUES (${contact[0].id}, ${owner[0].id}, GETDATE(), GETDATE())
+              VALUES (${contact[0].id}, ${owner[0].id}, GETUTCDATE(), GETUTCDATE())
             `;
           }
         }

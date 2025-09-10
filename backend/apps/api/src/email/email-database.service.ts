@@ -88,14 +88,14 @@ export class EmailDatabaseService {
         await this.prisma.$executeRaw`
           INSERT INTO [app].[EmailServiceConfigs] 
           ([id], [user_id], [service_type], [client_id], [client_secret], [redirect_uri], [scopes], [is_active], [created_at], [updated_at])
-          VALUES (${configId}, ${config.userId}, ${config.serviceType}, ${config.clientId}, ${config.clientSecret}, ${config.redirectUri}, ${JSON.stringify(config.scopes)}, ${config.isActive}, GETDATE(), GETDATE())
+          VALUES (${configId}, ${config.userId}, ${config.serviceType}, ${config.clientId}, ${config.clientSecret}, ${config.redirectUri}, ${JSON.stringify(config.scopes)}, ${config.isActive}, GETUTCDATE(), GETUTCDATE())
         `;
       } else {
         // Insert without accountName
         await this.prisma.$executeRaw`
           INSERT INTO [app].[EmailServiceConfigs] 
           ([id], [user_id], [service_type], [client_id], [client_secret], [redirect_uri], [scopes], [is_active], [created_at], [updated_at])
-          VALUES (${configId}, ${config.userId}, ${config.serviceType}, ${config.clientId}, ${config.clientSecret}, ${config.redirectUri}, ${JSON.stringify(config.scopes)}, ${config.isActive}, GETDATE(), GETDATE())
+          VALUES (${configId}, ${config.userId}, ${config.serviceType}, ${config.clientId}, ${config.clientSecret}, ${config.redirectUri}, ${JSON.stringify(config.scopes)}, ${config.isActive}, GETUTCDATE(), GETUTCDATE())
         `;
       }
       
@@ -221,7 +221,7 @@ export class EmailDatabaseService {
 
       const updateQuery = `
         UPDATE [app].[EmailServiceConfigs]
-        SET ${setClauses}, [updated_at] = GETDATE()
+        SET ${setClauses}, [updated_at] = GETUTCDATE()
         WHERE [id] = '${id}'
       `;
 
@@ -258,7 +258,7 @@ export class EmailDatabaseService {
     try {
       await this.prisma.$executeRaw`
         UPDATE [app].[EmailServiceConfigs]
-        SET [is_active] = 0, [updated_at] = GETDATE()
+        SET [is_active] = 0, [updated_at] = GETUTCDATE()
         WHERE [id] = ${id}
       `;
     } catch (error) {
@@ -273,18 +273,18 @@ export class EmailDatabaseService {
       // Generate a unique ID for the token
       const tokenId = require('crypto').randomUUID();
       
-      // Invalidate existing tokens for this user and service
+      // Invalidate existing tokens for this user and service - FIXED: Use UTC time
       await this.prisma.$executeRaw`
         UPDATE [app].[EmailAuthTokens]
-        SET [is_valid] = 0, [updated_at] = GETDATE()
+        SET [is_valid] = 0, [updated_at] = GETUTCDATE()
         WHERE [user_id] = ${token.userId} AND [service_type] = ${token.serviceType}
       `;
 
-      // Create new token
+      // Create new token - FIXED: Use raw SQL with explicit UTC conversion
       await this.prisma.$executeRaw`
         INSERT INTO [app].[EmailAuthTokens]
         ([id], [user_id], [service_type], [access_token], [refresh_token], [expires_at], [scope], [email], [is_valid], [created_at], [updated_at])
-        VALUES (${tokenId}, ${token.userId}, ${token.serviceType}, ${token.accessToken}, ${token.refreshToken}, ${token.expiresAt}, ${JSON.stringify(token.scope)}, ${token.email}, 1, GETDATE(), GETDATE())
+        VALUES (${tokenId}, ${token.userId}, ${token.serviceType}, ${token.accessToken}, ${token.refreshToken}, DATEADD(second, ${Math.floor(token.expiresAt.getTime() / 1000)}, '1970-01-01 00:00:00'), ${JSON.stringify(token.scope)}, ${token.email}, 1, GETUTCDATE(), GETUTCDATE())
       `;
       
       // Get the created token
@@ -317,10 +317,11 @@ export class EmailDatabaseService {
 
   async getValidEmailAuthToken(userId: string, serviceType: EmailServiceType): Promise<EmailAuthToken | null> {
     try {
+      // FIXED: Use UTC time for proper comparison
       const result = await this.prisma.$queryRaw`
         SELECT [id], [user_id], [service_type], [access_token], [refresh_token], [expires_at], [scope], [email], [is_valid], [created_at], [updated_at]
         FROM [app].[EmailAuthTokens]
-        WHERE [user_id] = ${userId} AND [service_type] = ${serviceType} AND [is_valid] = 1 AND [expires_at] > GETDATE()
+        WHERE [user_id] = ${userId} AND [service_type] = ${serviceType} AND [is_valid] = 1 AND [expires_at] > GETUTCDATE()
         ORDER BY [created_at] DESC
       `;
 
@@ -351,12 +352,27 @@ export class EmailDatabaseService {
     try {
       await this.prisma.$executeRaw`
         UPDATE [app].[EmailAuthTokens]
-        SET [is_valid] = 0, [updated_at] = GETDATE()
+        SET [is_valid] = 0, [updated_at] = GETUTCDATE()
         WHERE [id] = ${id}
       `;
     } catch (error) {
       this.logger.error('Failed to invalidate email auth token:', error);
       throw new Error(`Failed to invalidate email auth token: ${error.message}`);
+    }
+  }
+
+  // NEW: Invalidate all expired tokens - FIXED: Use UTC time
+  async invalidateExpiredTokens(): Promise<void> {
+    try {
+      const result = await this.prisma.$executeRaw`
+        UPDATE [app].[EmailAuthTokens]
+        SET [is_valid] = 0, [updated_at] = GETUTCDATE()
+        WHERE [is_valid] = 1 AND [expires_at] <= GETUTCDATE()
+      `;
+      this.logger.log(`Invalidated ${result} expired email auth tokens`);
+    } catch (error) {
+      this.logger.error('Failed to invalidate expired tokens:', error);
+      throw new Error(`Failed to invalidate expired tokens: ${error.message}`);
     }
   }
 
@@ -388,7 +404,7 @@ export class EmailDatabaseService {
 
       const updateQuery = `
         UPDATE [app].[EmailAuthTokens]
-        SET ${setClauses}, [updated_at] = GETDATE()
+        SET ${setClauses}, [updated_at] = GETUTCDATE()
         WHERE [id] = '${id}'
       `;
 
@@ -565,7 +581,7 @@ export class EmailDatabaseService {
       const result = await this.prisma.$queryRaw`
         SELECT [id], [user_id], [service_type], [access_token], [refresh_token], [expires_at], [scope], [email], [is_valid], [created_at], [updated_at]
         FROM [db_address_book].[app].[EmailAuthTokens]
-        WHERE [service_type] = 'GMAIL' AND [is_valid] = 1 AND [expires_at] > GETDATE()
+        WHERE [service_type] = 'GMAIL' AND [is_valid] = 1 AND [expires_at] > GETUTCDATE()
         ORDER BY [created_at] DESC
       `;
 
@@ -597,7 +613,7 @@ export class EmailDatabaseService {
     try {
       await this.prisma.$executeRaw`
         UPDATE [db_address_book].[app].[EmailAuthTokens]
-        SET [isValid] = 0, [updatedAt] = GETDATE()
+        SET [isValid] = 0, [updatedAt] = GETUTCDATE()
         WHERE [userId] = ${userId} AND [serviceType] = 'GMAIL'
       `;
       
@@ -615,14 +631,14 @@ export class EmailDatabaseService {
         // Remove specific account configuration
         await this.prisma.$executeRaw`
           UPDATE [db_address_book].[app].[EmailServiceConfigs]
-          SET [isActive] = 0, [updatedAt] = GETDATE()
+          SET [isActive] = 0, [updatedAt] = GETUTCDATE()
           WHERE [userId] = ${userId} AND [serviceType] = ${serviceType}
         `;
       } else {
         // Remove all configurations for this service type
         await this.prisma.$executeRaw`
           UPDATE [db_address_book].[app].[EmailServiceConfigs]
-          SET [isActive] = 0, [updatedAt] = GETDATE()
+          SET [isActive] = 0, [updatedAt] = GETUTCDATE()
           WHERE [userId] = ${userId} AND [serviceType] = ${serviceType}
         `;
       }
@@ -638,15 +654,15 @@ export class EmailDatabaseService {
     try {
       const result = await this.prisma.$executeRaw`
         UPDATE [db_address_book].[app].[EmailAuthTokens]
-        SET [isValid] = 0, [updatedAt] = GETDATE()
-        WHERE [expiresAt] < GETDATE() AND [isValid] = 1
+        SET [isValid] = 0, [updatedAt] = GETUTCDATE()
+        WHERE [expiresAt] < GETUTCDATE() AND [isValid] = 1
       `;
 
       // Get the count of affected rows
       const countResult = await this.prisma.$queryRaw`
         SELECT COUNT(*) as count
         FROM [db_address_book].[app].[EmailAuthTokens]
-        WHERE [expiresAt] < GETDATE() AND [isValid] = 0
+        WHERE [expiresAt] < GETUTCDATE() AND [isValid] = 0
       `;
 
       const count = Array.isArray(countResult) ? (countResult[0] as any).count : (countResult as any).count;
@@ -671,7 +687,7 @@ export class EmailDatabaseService {
         this.prisma.$queryRaw`SELECT COUNT(*) as count FROM [db_address_book].[app].[EmailServiceConfigs] WHERE [isActive] = 1`,
         this.prisma.$queryRaw`SELECT COUNT(*) as count FROM [db_address_book].[app].[EmailAuthTokens]`,
         this.prisma.$queryRaw`SELECT COUNT(*) as count FROM [db_address_book].[app].[EmailAuthTokens] WHERE [isValid] = 1`,
-        this.prisma.$queryRaw`SELECT COUNT(*) as count FROM [db_address_book].[app].[EmailAuthTokens] WHERE [expiresAt] < GETDATE()`
+        this.prisma.$queryRaw`SELECT COUNT(*) as count FROM [db_address_book].[app].[EmailAuthTokens] WHERE [expiresAt] < GETUTCDATE()`
       ]);
 
       const totalConfigs = (totalConfigsResult as any)[0].count;
@@ -701,7 +717,7 @@ export class EmailDatabaseService {
       const result = await this.prisma.$queryRaw`
         SELECT [id], [user_id], [service_type], [access_token], [refresh_token], [expires_at], [scope], [email], [is_valid], [created_at], [updated_at]
         FROM [app].[EmailAuthTokens]
-        WHERE [is_valid] = 1 AND [expires_at] <= ${thresholdDate} AND [expires_at] > GETDATE()
+        WHERE [is_valid] = 1 AND [expires_at] <= ${thresholdDate} AND [expires_at] > GETUTCDATE()
         ORDER BY [expires_at] ASC
       `;
 

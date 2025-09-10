@@ -38,7 +38,7 @@ export class TagsService {
 
       await this.prisma.$executeRaw`
         INSERT INTO [app].[Tags] (id, name, color, description, is_active, created_at, updated_at)
-        VALUES (${tagId}, ${tagName}, ${tagColor}, ${tagDescription}, 1, GETDATE(), GETDATE())
+        VALUES (${tagId}, ${tagName}, ${tagColor}, ${tagDescription}, 1, GETUTCDATE(), GETUTCDATE())
       `;
 
       this.logger.log(`Tag created: ${tagName}`);
@@ -293,7 +293,7 @@ export class TagsService {
       const contactTagId = require('crypto').randomUUID();
       await this.prisma.$executeRaw`
         INSERT INTO [app].[ContactTags] (id, contact_id, tag_id, created_at)
-        VALUES (${contactTagId}, ${contactId}, ${tagId}, GETDATE())
+        VALUES (${contactTagId}, ${contactId}, ${tagId}, GETUTCDATE())
       `;
       
       return {
@@ -411,7 +411,7 @@ export class TagsService {
           const contactTagId = require('crypto').randomUUID();
           await this.prisma.$executeRaw`
             INSERT INTO [app].[ContactTags] (id, contact_id, tag_id, created_at)
-            VALUES (${contactTagId}, ${contactId}, ${tagId}, GETDATE())
+            VALUES (${contactTagId}, ${contactId}, ${tagId}, GETUTCDATE())
           `;
           added++;
         } catch (error) {
@@ -468,7 +468,7 @@ export class TagsService {
           const contactTagId = require('crypto').randomUUID();
           await this.prisma.$executeRaw`
             INSERT INTO [app].[ContactTags] (id, contact_id, tag_id, created_at)
-            VALUES (${contactTagId}, ${contactId}, ${tagId}, GETDATE())
+            VALUES (${contactTagId}, ${contactId}, ${tagId}, GETUTCDATE())
           `;
           added++;
         } catch (error) {
