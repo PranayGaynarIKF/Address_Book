@@ -15,7 +15,9 @@ import {
 } from 'lucide-react';
 import TemplateSelector from './TemplateSelector';
 import TemplateCreationModal from './TemplateCreationModal';
-import GmailOAuthCheck from './GmailOAuthCheck';
+import GmailOAuthManager from './GmailOAuthManager';
+import GmailAuthStatus from './GmailAuthStatus';
+import { useGmailAuth } from '../hooks/useGmailAuth';
 
 interface EmailComposeProps {
   isOpen: boolean;
@@ -60,6 +62,9 @@ const EmailCompose: React.FC<EmailComposeProps> = ({ isOpen, onClose, replyTo })
     attachments: [],
     serviceType: 'GMAIL'
   });
+  
+  // Gmail authentication hook
+  const { authStatus, checkAuth, getOAuthUrl } = useGmailAuth();
   
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string>('');
@@ -278,13 +283,26 @@ const EmailCompose: React.FC<EmailComposeProps> = ({ isOpen, onClose, replyTo })
   const handleSend = async () => {
     if (!validateDraft()) return;
 
-    // Check Gmail OAuth before sending
-    setShowOAuthModal(true);
+    console.log('🔍 EmailCompose: Starting authentication check...');
+    
+    // Check Gmail authentication status first
+    const isAuthenticated = await checkAuth();
+    
+    console.log('🔍 EmailCompose: Authentication result:', isAuthenticated);
+    
+    if (!isAuthenticated) {
+      console.log('🔍 EmailCompose: Not authenticated, showing OAuth modal');
+      // If not authenticated, show OAuth modal
+      setShowOAuthModal(true);
+      return;
+    }
+
+    console.log('🔍 EmailCompose: Authenticated, proceeding with sending');
+    // If authenticated, proceed with sending
+    await proceedWithSending();
   };
 
-  const handleOAuthSuccess = async () => {
-    setShowOAuthModal(false);
-    
+  const proceedWithSending = async () => {
     setIsLoading(true);
     setError('');
     setSuccess('');
@@ -302,6 +320,16 @@ const EmailCompose: React.FC<EmailComposeProps> = ({ isOpen, onClose, replyTo })
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleOAuthSuccess = async () => {
+    setShowOAuthModal(false);
+    
+    // Refresh auth status after successful OAuth
+    await checkAuth(true);
+    
+    // Proceed with sending
+    await proceedWithSending();
   };
 
   const handleOAuthError = (error: string) => {
@@ -886,6 +914,14 @@ const EmailCompose: React.FC<EmailComposeProps> = ({ isOpen, onClose, replyTo })
             </button>
           </div>
           
+          {/* Gmail Authentication Status */}
+          <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+            <GmailAuthStatus 
+              onAuthRequired={() => setShowOAuthModal(true)}
+              showDetails={true}
+            />
+          </div>
+
           <div className="flex gap-2">
             <button
               type="button"
@@ -897,15 +933,17 @@ const EmailCompose: React.FC<EmailComposeProps> = ({ isOpen, onClose, replyTo })
             <button
               type="button"
               onClick={handleSend}
-              disabled={isLoading}
+              disabled={isLoading || authStatus.isLoading}
               className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <Send className="h-4 w-4" />
               {isLoading 
                 ? 'Sending...' 
-                : draft.selectedTagId 
-                  ? `Send to ${selectedTagContacts.length} Contacts` 
-                  : 'Send'
+                : authStatus.isLoading
+                  ? 'Checking auth...'
+                  : draft.selectedTagId 
+                    ? `Send to ${selectedTagContacts.length} Contacts` 
+                    : 'Send'
               }
             </button>
           </div>
@@ -920,8 +958,8 @@ const EmailCompose: React.FC<EmailComposeProps> = ({ isOpen, onClose, replyTo })
         channel="EMAIL"
       />
 
-      {/* Gmail OAuth Check Modal */}
-      <GmailOAuthCheck
+      {/* Gmail OAuth Manager */}
+      <GmailOAuthManager
         isOpen={showOAuthModal}
         onClose={() => setShowOAuthModal(false)}
         onAuthSuccess={handleOAuthSuccess}

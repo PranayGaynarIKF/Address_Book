@@ -167,9 +167,9 @@ export class MailAccountsService {
     return account[0];
   }
 
-  async generateGoogleOAuthUrl(): Promise<string> {
+  async generateGoogleOAuthUrl(customRedirectUri?: string): Promise<{ oauthUrl: string; state: string }> {
     const clientId = process.env.GOOGLE_CLIENT_ID;
-    const redirectUri = 'http://localhost:4002/api/mail-accounts/oauth-callback'; // Fixed: Use the correct callback endpoint
+    const redirectUri = customRedirectUri || process.env.GOOGLE_REDIRECT_URI || 'http://localhost:4002/api/mail-accounts/oauth-callback';
     
     if (!clientId) {
       throw new Error('Google OAuth client ID not configured');
@@ -178,6 +178,7 @@ export class MailAccountsService {
     // Debug logging
     console.log('🔍 Debug OAuth URL Generation:');
     console.log('  - GOOGLE_REDIRECT_URI env var:', process.env.GOOGLE_REDIRECT_URI);
+    console.log('  - Custom redirectUri:', customRedirectUri);
     console.log('  - Final redirectUri:', redirectUri);
     console.log('  - Client ID:', clientId ? '✅ Set' : '❌ Missing');
 
@@ -188,9 +189,13 @@ export class MailAccountsService {
 
     const scopes = [
       'https://www.googleapis.com/auth/gmail.readonly',
+      'https://www.googleapis.com/auth/gmail.send',
+      'https://www.googleapis.com/auth/gmail.modify',
+      'https://www.googleapis.com/auth/gmail.labels',
       'https://www.googleapis.com/auth/contacts.readonly',
       'https://www.googleapis.com/auth/userinfo.email',
-      'https://www.googleapis.com/auth/userinfo.profile'
+      'https://www.googleapis.com/auth/userinfo.profile',
+      'openid'
     ];
 
     const oauthUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
@@ -212,7 +217,10 @@ export class MailAccountsService {
     console.log('  - Redirect URI contains spaces:', redirectUri.includes(' '));
     console.log('  - Redirect URI ends with slash:', redirectUri.endsWith('/'));
 
-    return oauthUrl.toString();
+    return {
+      oauthUrl: oauthUrl.toString(),
+      state
+    };
   }
 
   async generateOutlookOAuthUrl(): Promise<string> {
@@ -291,7 +299,7 @@ export class MailAccountsService {
   async exchangeCodeForTokens(code: string): Promise<any> {
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-    const redirectUri = 'http://localhost:4002/api/mail-accounts/oauth-callback'; // Fixed: Use the correct callback endpoint
+    const redirectUri = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:4002/api/mail-accounts/oauth-callback';
     
     if (!clientId || !clientSecret) {
       throw new Error('Google OAuth client credentials not configured');
@@ -322,13 +330,41 @@ export class MailAccountsService {
       console.log('🔄 OAuth tokens received:', {
         access_token: tokens.access_token ? tokens.access_token.substring(0, 20) + '...' : 'NULL',
         refresh_token: tokens.refresh_token ? tokens.refresh_token.substring(0, 20) + '...' : 'NULL',
-        expires_in: tokens.expires_in
+        expires_in: tokens.expires_in,
+        token_type: tokens.token_type,
+        scope: tokens.scope
       });
+      
+      // Set expires_in to 1 hour if not provided (Minimal Example Reference)
+      if (!tokens.expires_in || tokens.expires_in <= 0) {
+        console.error('❌ Invalid expires_in value:', tokens.expires_in);
+        console.error('   Setting default expiration to 1 hour');
+        tokens.expires_in = 3600; // 1 hour in seconds
+      }
+      
+      // Log timing info (Minimal Example Reference)
+      console.log('🕐 Token timing validation:');
+      const now = new Date();
+      console.log('   Current server time:', now.toISOString());
+      console.log('   expires_in value:', tokens.expires_in, 'seconds');
+      
+      // Calculate expiration time (Minimal Example Reference)
+      const expiresAt = new Date(now.getTime() + tokens.expires_in * 1000);
+      console.log('   Expected expiration:', expiresAt.toISOString());
+      
+      // Validate expiration (Minimal Example Reference)
+      if (expiresAt <= now) {
+        console.error('❌ CRITICAL: Token expiration is in the past!');
+        console.error(`   Current time: ${now.toISOString()}`);
+        console.error(`   Expires at: ${expiresAt.toISOString()}`);
+        console.error(`   Difference: ${(now.getTime() - expiresAt.getTime()) / 1000} seconds in the past`);
+        throw new Error('Token expiration is in the past - this should never happen');
+      }
       
       // AUTO-SAVE: Save email service configuration and tokens to database
       try {
         console.log('🔄 Starting auto-save process...');
-        await this.autoSaveGmailConfiguration(clientId, clientSecret, redirectUri, tokens);
+        await this.autoSaveGmailConfiguration(clientId, clientSecret, redirectUri, tokens, expiresAt);
         console.log('✅ Auto-save completed successfully!');
       } catch (autoSaveError) {
         console.error('❌ Auto-save failed:', autoSaveError.message);
@@ -344,10 +380,11 @@ export class MailAccountsService {
 
   // NEW METHOD: Auto-save Gmail configuration and tokens
   private async autoSaveGmailConfiguration(
-    clientId: string, 
-    clientSecret: string, 
-    redirectUri: string, 
-    tokens: any
+    clientId: string,
+    clientSecret: string,
+    redirectUri: string,
+    tokens: any,
+    expiresAt: Date
   ): Promise<void> {
     try {
       console.log('🔄 Auto-saving Gmail configuration and tokens...');
@@ -399,9 +436,10 @@ export class MailAccountsService {
       `;
       console.log('   Existing tokens invalidated');
       
-      // Insert new token
-      const expiresAt = new Date(Date.now() + ((tokens.expires_in || 3600) * 1000));
-      console.log(`   Expires at: ${expiresAt}`);
+      // Insert new token using the already validated expiresAt from above
+      // The expiresAt was already calculated and validated in the main flow
+      console.log(`   Using validated expires_at: ${expiresAt.toISOString()}`);
+      console.log(`   Time until expiry: ${Math.round((expiresAt.getTime() - new Date().getTime()) / 1000 / 60)} minutes`);
       
       await this.prisma.$executeRaw`
         INSERT INTO [app].[EmailAuthTokens]

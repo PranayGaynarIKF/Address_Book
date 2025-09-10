@@ -80,10 +80,10 @@ export class MailAccountsController {
 
   // OAuth callback route - MUST come before @Get(':id') to avoid route conflict
   @Get('oauth-callback')
-  @ApiOperation({ summary: 'Handle OAuth callback from Google' })
+  @ApiOperation({ summary: 'Handle OAuth callback from Google (GET)' })
   @ApiResponse({ status: 200, description: 'OAuth callback handled successfully' })
   @ApiResponse({ status: 400, description: 'OAuth callback failed' })
-  async handleOAuthCallback(@Query('code') code: string, @Query('state') state?: string) {
+  async handleOAuthCallbackGet(@Query('code') code: string, @Query('state') state?: string) {
     try {
       if (!code) {
         throw new Error('Authorization code not provided');
@@ -97,6 +97,55 @@ export class MailAccountsController {
           accessToken: tokens.access_token,
           refreshToken: tokens.refresh_token,
           expiresIn: tokens.expires_in,
+        },
+      };
+    } catch (error) {
+      throw new HttpException(
+        {
+          success: false,
+          message: error.message,
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Post('oauth-callback')
+  @ApiOperation({ summary: 'Handle OAuth callback from email provider (POST)' })
+  @ApiBody({ 
+    type: Object, 
+    description: 'OAuth callback data',
+    schema: {
+      type: 'object',
+      properties: {
+        code: { type: 'string' },
+        state: { type: 'string' },
+        provider: { type: 'string' }
+      },
+      required: ['code', 'provider']
+    }
+  })
+  @ApiResponse({ status: 200, description: 'OAuth callback handled successfully' })
+  @ApiResponse({ status: 400, description: 'OAuth callback failed' })
+  async handleOAuthCallbackPost(@Body() body: { code: string; state?: string; provider: string }) {
+    try {
+      const { code, state, provider } = body;
+      
+      if (!code) {
+        throw new Error('Authorization code not provided');
+      }
+
+      const tokens = await this.mailAccountsService.exchangeCodeForTokens(code);
+      return {
+        success: true,
+        message: `${provider} OAuth authentication successful`,
+        data: {
+          accessToken: tokens.access_token,
+          refreshToken: tokens.refresh_token,
+          expiresIn: tokens.expires_in,
+          scope: tokens.scope,
+          tokenType: tokens.token_type,
+          expiryDate: tokens.expiry_date
         },
       };
     } catch (error) {
@@ -134,6 +183,69 @@ export class MailAccountsController {
     }
   }
 
+  @Post('oauth-url')
+  @ApiOperation({ summary: 'Generate OAuth URL for email provider' })
+  @ApiBody({ 
+    type: Object, 
+    description: 'OAuth URL generation request',
+    schema: {
+      type: 'object',
+      properties: {
+        provider: { type: 'string', enum: ['gmail', 'outlook', 'yahoo', 'zoho'] },
+        redirectUri: { type: 'string' }
+      },
+      required: ['provider']
+    }
+  })
+  @ApiResponse({ status: 200, description: 'OAuth URL generated successfully' })
+  @ApiResponse({ status: 400, description: 'Failed to generate OAuth URL' })
+  async generateOAuthUrl(@Body() body: { provider: string; redirectUri?: string }) {
+    try {
+      const { provider, redirectUri } = body;
+      
+      let oauthUrl: string;
+      let state: string;
+      
+      switch (provider.toLowerCase()) {
+        case 'gmail':
+          const gmailResult = await this.mailAccountsService.generateGoogleOAuthUrl(redirectUri);
+          oauthUrl = gmailResult.oauthUrl;
+          state = gmailResult.state;
+          break;
+        case 'outlook':
+          oauthUrl = await this.mailAccountsService.generateOutlookOAuthUrl();
+          state = `outlook_oauth_${Date.now()}`;
+          break;
+        case 'yahoo':
+          oauthUrl = await this.mailAccountsService.generateYahooOAuthUrl();
+          state = `yahoo_oauth_${Date.now()}`;
+          break;
+        case 'zoho':
+          oauthUrl = await this.mailAccountsService.generateZohoOAuthUrl();
+          state = `zoho_oauth_${Date.now()}`;
+          break;
+        default:
+          throw new Error(`Unsupported provider: ${provider}`);
+      }
+
+      return {
+        success: true,
+        message: `${provider} OAuth URL generated successfully`,
+        authUrl: oauthUrl,
+        state,
+        redirectUri: redirectUri || process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000'
+      };
+    } catch (error) {
+      throw new HttpException(
+        {
+          success: false,
+          message: error.message,
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
   @Post('google-oauth')
   @ApiOperation({ summary: 'Initiate Google OAuth flow' })
   @ApiBody({ type: Object, description: 'Google OAuth initiation' })
@@ -141,13 +253,14 @@ export class MailAccountsController {
   @ApiResponse({ status: 400, description: 'Failed to generate OAuth URL' })
   async initiateGoogleOAuth() {
     try {
-      const oauthUrl = await this.mailAccountsService.generateGoogleOAuthUrl();
+      const result = await this.mailAccountsService.generateGoogleOAuthUrl();
       return {
         success: true,
         message: 'Google OAuth URL generated successfully',
         data: {
-          oauthUrl,
-          redirectUri: process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/oauth-callback'
+          oauthUrl: result.oauthUrl,
+          state: result.state,
+          redirectUri: process.env.GOOGLE_REDIRECT_URI || 'http://localhost:4002/api/mail-accounts/oauth-callback'
         },
       };
     } catch (error) {

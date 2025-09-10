@@ -14,7 +14,7 @@ import {
   Trash2
 } from 'lucide-react';
 import TemplateCreationModal from './TemplateCreationModal';
-import GmailOAuthCheck from './GmailOAuthCheck';
+import GmailOAuthManager from './GmailOAuthManager';
 
 interface Contact {
   id: string;
@@ -663,8 +663,8 @@ const GmailBulkMessaging: React.FC<GmailBulkMessagingProps> = ({ onClose }) => {
         channel="EMAIL"
       />
 
-      {/* Gmail OAuth Check Modal */}
-      <GmailOAuthCheck
+      {/* Gmail OAuth Manager */}
+      <GmailOAuthManager
         isOpen={showOAuthModal}
         onClose={() => setShowOAuthModal(false)}
         onAuthSuccess={handleOAuthSuccess}

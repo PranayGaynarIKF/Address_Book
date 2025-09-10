@@ -1284,4 +1284,128 @@ export class EmailController {
       message: 'Tags retrieved successfully for email operations'
     };
   }
+
+  // Gmail Authentication Status Endpoint
+  @Get('auth/GMAIL/status')
+  @ApiOperation({
+    summary: 'Check Gmail authentication status',
+    description: 'Returns the current Gmail authentication status including token validity and expiration'
+  })
+  @ApiResponse({ status: 200, description: 'Gmail authentication status retrieved successfully' })
+  @ApiResponse({ status: 500, description: 'Failed to check Gmail authentication status' })
+  async getGmailAuthStatus() {
+    try {
+      const userId = 'current-user-id'; // In a real app, this would come from JWT token
+      
+      // Get the most recent valid Gmail token
+      const authToken = await this.emailDatabaseService.getValidEmailAuthToken(userId, 'GMAIL');
+      
+      if (!authToken) {
+        return {
+          isAuthenticated: false,
+          message: 'No Gmail authentication found'
+        };
+      }
+
+      // Check if token is expired
+      const now = new Date();
+      const expiresAt = authToken.expiresAt ? new Date(authToken.expiresAt) : null;
+      const isExpired = expiresAt && expiresAt <= now;
+      
+      // Check if token needs refresh (expires within 5 minutes)
+      const needsRefresh = expiresAt && 
+        (expiresAt.getTime() - now.getTime()) < 5 * 60 * 1000;
+      
+      // Log token status for debugging
+      console.log('🔍 Token validation:', {
+        tokenId: authToken.id,
+        email: authToken.email,
+        expiresAt: expiresAt?.toISOString(),
+        currentTime: now.toISOString(),
+        isExpired,
+        needsRefresh,
+        timeUntilExpiry: expiresAt ? Math.round((expiresAt.getTime() - now.getTime()) / 1000 / 60) : 'N/A'
+      });
+
+      return {
+        isAuthenticated: !isExpired,
+        email: authToken.email,
+        expiresAt: authToken.expiresAt?.toISOString(),
+        needsRefresh: needsRefresh,
+        message: isExpired ? 'Gmail token has expired' : 'Gmail is authenticated'
+      };
+
+    } catch (error) {
+      this.logger.error('Failed to check Gmail auth status:', error);
+      return {
+        isAuthenticated: false,
+        error: error.message,
+        message: 'Failed to check Gmail authentication status'
+      };
+    }
+  }
+
+  // Gmail Token Refresh Endpoint
+  @Post('auth/GMAIL/refresh')
+  @ApiOperation({
+    summary: 'Refresh Gmail tokens',
+    description: 'Refreshes expired or soon-to-expire Gmail tokens'
+  })
+  @ApiResponse({ status: 200, description: 'Gmail tokens refreshed successfully' })
+  @ApiResponse({ status: 400, description: 'Failed to refresh Gmail tokens' })
+  async refreshGmailTokens() {
+    try {
+      const userId = 'current-user-id'; // In a real app, this would come from JWT token
+      
+      // Get the current Gmail token
+      const authToken = await this.emailDatabaseService.getValidEmailAuthToken(userId, 'GMAIL');
+      
+      if (!authToken) {
+        throw new Error('No Gmail authentication found');
+      }
+
+      // Get Gmail service configuration
+      const config = await this.emailDatabaseService.getEmailServiceConfig(userId, 'GMAIL');
+      if (!config) {
+        throw new Error('No Gmail configuration found');
+      }
+
+      // Initialize Gmail service
+      const gmailService = this.emailManagerService.getEmailService('GMAIL') as any;
+      if (gmailService && typeof gmailService.initializeOAuthClient === 'function') {
+        gmailService.initializeOAuthClient(config.clientId, config.clientSecret, config.redirectUri);
+        
+        // Try to refresh the token
+        const refreshResult = await gmailService.refreshToken(authToken.refreshToken);
+        
+        if (refreshResult) {
+          // Update the token in database
+          await this.emailDatabaseService.updateEmailAuthToken(authToken.id, {
+            accessToken: refreshResult.accessToken,
+            refreshToken: refreshResult.refreshToken || authToken.refreshToken,
+            expiresAt: refreshResult.expiresAt,
+            isValid: true
+          });
+
+          return {
+            success: true,
+            message: 'Gmail tokens refreshed successfully',
+            expiresAt: refreshResult.expiresAt
+          };
+        } else {
+          throw new Error('Failed to refresh tokens');
+        }
+      } else {
+        throw new Error('Gmail service not available');
+      }
+
+    } catch (error) {
+      this.logger.error('Failed to refresh Gmail tokens:', error);
+      return {
+        success: false,
+        error: error.message,
+        message: 'Failed to refresh Gmail tokens'
+      };
+    }
+  }
 }
