@@ -18,7 +18,6 @@ import {
   Minimize2
 } from 'lucide-react';
 import TemplateCreationModal from './TemplateCreationModal';
-import GmailOAuthManager from './GmailOAuthManager';
 // Removed unused imports
 
 interface Contact {
@@ -57,7 +56,6 @@ const GmailBulkMessaging: React.FC<GmailBulkMessagingProps> = ({ onClose }) => {
   const [emailContent, setEmailContent] = useState<string>('');
   const [isSending, setIsSending] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
-  const [showOAuthModal, setShowOAuthModal] = useState(false);
   const [sendProgress, setSendProgress] = useState({ sent: 0, total: 0 });
   const [searchTerm, setSearchTerm] = useState('');
   const [isMaximized, setIsMaximized] = useState(false);
@@ -202,17 +200,18 @@ const GmailBulkMessaging: React.FC<GmailBulkMessagingProps> = ({ onClose }) => {
   // Gmail send mutation
   const sendGmailMutation = useMutation({
     mutationFn: async (data: { contacts: Contact[], subject: string, content: string }) => {
-      const response = await fetch('http://localhost:4002/email-bulk/bulk-send', {
+      // Use the simple send endpoint for bulk emails
+      const response = await fetch('http://localhost:4002/email/messages/send', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-api-key': 'my-secret-api-key-123'
         },
         body: JSON.stringify({
-          contacts: data.contacts,
+          to: data.contacts.map(contact => contact.email).filter(Boolean),
           subject: data.subject,
-          content: data.content,
-          fromEmail: 'pranay.gaynar@ikf.co.in' // Use connected Gmail account
+          body: data.content,
+          serviceType: 'GMAIL'
         })
       });
 
@@ -312,14 +311,7 @@ const GmailBulkMessaging: React.FC<GmailBulkMessagingProps> = ({ onClose }) => {
       return;
     }
 
-    // Check Gmail OAuth before sending
-    setShowOAuthModal(true);
-  };
-
-  const handleOAuthSuccess = async () => {
-    setShowOAuthModal(false);
-    
-    // Proceed with sending emails
+    // Proceed directly with sending - let the backend handle authentication
     setIsSending(true);
     setSendProgress({ sent: 0, total: selectedContacts.length });
 
@@ -331,13 +323,11 @@ const GmailBulkMessaging: React.FC<GmailBulkMessagingProps> = ({ onClose }) => {
       });
     } catch (error) {
       console.error('Error sending emails:', error);
+    } finally {
+      setIsSending(false);
     }
   };
 
-  const handleOAuthError = (error: string) => {
-    console.error('Gmail OAuth error:', error);
-    alert(`Gmail authentication failed: ${error}`);
-  };
 
   const generatePreview = (contact: Contact) => {
     let preview = emailContent;
@@ -724,13 +714,6 @@ const GmailBulkMessaging: React.FC<GmailBulkMessagingProps> = ({ onClose }) => {
         channel="EMAIL"
       />
 
-      {/* Gmail OAuth Manager */}
-      <GmailOAuthManager
-        isOpen={showOAuthModal}
-        onClose={() => setShowOAuthModal(false)}
-        onAuthSuccess={handleOAuthSuccess}
-        onAuthError={handleOAuthError}
-      />
     </div>
   );
 };

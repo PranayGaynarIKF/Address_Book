@@ -19,9 +19,6 @@ import {
 } from 'lucide-react';
 import TemplateSelector from './TemplateSelector';
 import TemplateCreationModal from './TemplateCreationModal';
-import GmailOAuthManager from './GmailOAuthManager';
-import GmailAuthStatus from './GmailAuthStatus';
-import { useGmailAuth } from '../hooks/useGmailAuth';
 import { formatPlainTextToMailFormat, formatLiteralNewlinesToHtml } from '../utils/htmlUtils';
 
 interface EmailComposeProps {
@@ -68,8 +65,6 @@ const EmailCompose: React.FC<EmailComposeProps> = ({ isOpen, onClose, replyTo })
     serviceType: 'GMAIL'
   });
   
-  // Gmail authentication hook
-  const { authStatus, checkAuth, getOAuthUrl, clearCache } = useGmailAuth();
   
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string>('');
@@ -83,7 +78,6 @@ const EmailCompose: React.FC<EmailComposeProps> = ({ isOpen, onClose, replyTo })
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
   const [selectedTemplateData, setSelectedTemplateData] = useState<any>(null);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
-  const [showOAuthModal, setShowOAuthModal] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
 
   // Quill editor configuration
@@ -318,29 +312,7 @@ const EmailCompose: React.FC<EmailComposeProps> = ({ isOpen, onClose, replyTo })
   const handleSend = async () => {
     if (!validateDraft()) return;
 
-    console.log('🔍 EmailCompose: Starting authentication check...');
-    console.log('🔍 EmailCompose: Current authStatus before check:', authStatus);
-    
-    // Clear cache to ensure fresh authentication check
-    console.log('🔍 EmailCompose: Clearing cache...');
-    clearCache();
-    
-    // Check Gmail authentication status first (force refresh to bypass cache)
-    console.log('🔍 EmailCompose: Calling checkAuth(true)...');
-    const isAuthenticated = await checkAuth(true);
-    
-    console.log('🔍 EmailCompose: Authentication result:', isAuthenticated);
-    console.log('🔍 EmailCompose: Current authStatus after check:', authStatus);
-    
-    if (!isAuthenticated) {
-      console.log('🔍 EmailCompose: Not authenticated, showing OAuth modal');
-      // If not authenticated, show OAuth modal
-      setShowOAuthModal(true);
-      return;
-    }
-
-    console.log('🔍 EmailCompose: Authenticated, proceeding with sending');
-    // If authenticated, proceed with sending
+    // Proceed directly with sending - let the backend handle authentication
     await proceedWithSending();
   };
 
@@ -364,20 +336,6 @@ const EmailCompose: React.FC<EmailComposeProps> = ({ isOpen, onClose, replyTo })
     }
   };
 
-  const handleOAuthSuccess = async () => {
-    setShowOAuthModal(false);
-    
-    // Refresh auth status after successful OAuth
-    await checkAuth(true);
-    
-    // Proceed with sending
-    await proceedWithSending();
-  };
-
-  const handleOAuthError = (error: string) => {
-    console.error('Gmail OAuth error:', error);
-    setError(`Gmail authentication failed: ${error}`);
-  };
 
   const sendRegularEmail = async () => {
     // Simulate API call for regular email
@@ -975,13 +933,6 @@ const EmailCompose: React.FC<EmailComposeProps> = ({ isOpen, onClose, replyTo })
             </button>
           </div>
           
-          {/* Gmail Authentication Status */}
-          <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-            <GmailAuthStatus 
-              onAuthRequired={() => setShowOAuthModal(true)}
-              showDetails={true}
-            />
-          </div>
 
           <div className="flex gap-2">
             <button
@@ -994,17 +945,15 @@ const EmailCompose: React.FC<EmailComposeProps> = ({ isOpen, onClose, replyTo })
             <button
               type="button"
               onClick={handleSend}
-              disabled={isLoading || authStatus.isLoading}
+              disabled={isLoading}
               className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <Send className="h-4 w-4" />
               {isLoading 
                 ? 'Sending...' 
-                : authStatus.isLoading
-                  ? 'Checking auth...'
-                  : draft.selectedTagId 
-                    ? `Send to ${selectedTagContacts.length} Contacts` 
-                    : 'Send'
+                : draft.selectedTagId 
+                  ? `Send to ${selectedTagContacts.length} Contacts` 
+                  : 'Send'
               }
             </button>
           </div>
@@ -1019,13 +968,6 @@ const EmailCompose: React.FC<EmailComposeProps> = ({ isOpen, onClose, replyTo })
         channel="EMAIL"
       />
 
-      {/* Gmail OAuth Manager */}
-      <GmailOAuthManager
-        isOpen={showOAuthModal}
-        onClose={() => setShowOAuthModal(false)}
-        onAuthSuccess={handleOAuthSuccess}
-        onAuthError={handleOAuthError}
-      />
     </div>
   );
 };

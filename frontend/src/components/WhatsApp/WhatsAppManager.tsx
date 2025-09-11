@@ -17,7 +17,7 @@ import {
   Mail
 } from 'lucide-react';
 import { TagDeleteConfirmationModal } from '../TagDeleteConfirmationModal';
-import WhatsAppBulkMessaging from '../WhatsAppBulkMessaging';
+import WhatsAppBulkMessaging from './WhatsAppBulkMessaging';
 
 interface Contact {
   id: string;
@@ -77,7 +77,7 @@ const WhatsAppManager: React.FC = () => {
   const [isSending, setIsSending] = useState(false);
   const [messages, setMessages] = useState<WhatsAppMessage[]>([]);
   const [stats, setStats] = useState<WhatsAppStats | null>(null);
-  const [activeTab, setActiveTab] = useState<'compose' | 'templates' | 'history' | 'statistics' | 'tag-management' | 'bulk-messaging'>('compose');
+  const [activeTab, setActiveTab] = useState<'compose' | 'templates' | 'history' | 'statistics' | 'tag-management' | 'bulk-messaging'>('bulk-messaging');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(false);
@@ -1029,6 +1029,8 @@ const WhatsAppManager: React.FC = () => {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
           <div className="border-b border-gray-200">
             <nav className="flex space-x-8 px-6">
+              {/* Hidden sections as requested by user */}
+              {/* 
               <button
                 onClick={() => setActiveTab('compose')}
                 className={`py-4 px-1 border-b-2 font-medium text-sm ${
@@ -1087,6 +1089,7 @@ const WhatsAppManager: React.FC = () => {
                 <Tag className="h-4 w-4 inline mr-2" />
                 Tag History
               </button>
+              */}
               <button
                 onClick={() => setShowBulkMessaging(true)}
                 className={`py-4 px-1 border-b-2 font-medium text-sm ${
@@ -1103,7 +1106,8 @@ const WhatsAppManager: React.FC = () => {
         </div>
 
         {/* Tab Content */}
-        {activeTab === 'compose' && (
+        {/* Hidden sections as requested by user */}
+        {false && activeTab === 'compose' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Message Composition */}
             <div className="lg:col-span-1">
@@ -1411,7 +1415,7 @@ const WhatsAppManager: React.FC = () => {
           </div>
         )}
 
-        {activeTab === 'templates' && (
+        {false && activeTab === 'templates' && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-semibold text-gray-900 flex items-center">
@@ -1599,7 +1603,7 @@ const WhatsAppManager: React.FC = () => {
           </div>
         )}
 
-        {activeTab === 'history' && (
+        {false && activeTab === 'history' && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-semibold text-gray-900 flex items-center">
@@ -1671,7 +1675,7 @@ const WhatsAppManager: React.FC = () => {
           </div>
         )}
 
-        {activeTab === 'statistics' && (
+        {false && activeTab === 'statistics' && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {stats ? (
               <>
@@ -1682,7 +1686,7 @@ const WhatsAppManager: React.FC = () => {
                     </div>
                     <div className="ml-4">
                       <p className="text-sm font-medium text-gray-600">Total Messages</p>
-                      <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+                      <p className="text-2xl font-bold text-gray-900">{stats?.total || 0}</p>
                     </div>
                   </div>
                 </div>
@@ -1694,7 +1698,7 @@ const WhatsAppManager: React.FC = () => {
                     </div>
                     <div className="ml-4">
                       <p className="text-sm font-medium text-gray-600">Delivered</p>
-                      <p className="text-2xl font-bold text-gray-900">{stats.delivered}</p>
+                      <p className="text-2xl font-bold text-gray-900">{stats?.delivered || 0}</p>
                     </div>
                   </div>
                 </div>
@@ -1706,7 +1710,7 @@ const WhatsAppManager: React.FC = () => {
                     </div>
                     <div className="ml-4">
                       <p className="text-sm font-medium text-gray-600">Sent</p>
-                      <p className="text-2xl font-bold text-gray-900">{stats.sent}</p>
+                      <p className="text-2xl font-bold text-gray-900">{stats?.sent || 0}</p>
                     </div>
                   </div>
                 </div>
@@ -1718,7 +1722,7 @@ const WhatsAppManager: React.FC = () => {
                     </div>
                     <div className="ml-4">
                       <p className="text-sm font-medium text-gray-600">Failed</p>
-                      <p className="text-2xl font-bold text-gray-900">{stats.failed}</p>
+                      <p className="text-2xl font-bold text-gray-900">{stats?.failed || 0}</p>
                     </div>
                   </div>
                 </div>
@@ -1730,16 +1734,16 @@ const WhatsAppManager: React.FC = () => {
                       <div className="w-full bg-gray-200 rounded-full h-4">
                         <div
                           className="bg-green-600 h-4 rounded-full transition-all duration-300"
-                          style={{ width: `${stats.successRate}%` }}
+                          style={{ width: `${stats?.successRate || 0}%` }}
                         ></div>
                       </div>
                     </div>
                     <span className="text-2xl font-bold text-green-600">
-                      {stats.successRate}%
+                      {stats?.successRate || 0}%
                     </span>
                   </div>
                   <p className="text-sm text-gray-500 mt-2">
-                    {stats.delivered + stats.sent} out of {stats.total} messages were successful
+                    {(stats?.delivered || 0) + (stats?.sent || 0)} out of {stats?.total || 0} messages were successful
                   </p>
                 </div>
               </>
@@ -1752,7 +1756,7 @@ const WhatsAppManager: React.FC = () => {
           </div>
         )}
 
-        {activeTab === 'tag-management' && (
+        {false && activeTab === 'tag-management' && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-semibold text-gray-900 flex items-center">
@@ -1879,7 +1883,7 @@ const WhatsAppManager: React.FC = () => {
         )}
 
         {/* Tag Contacts Display */}
-        {activeTab === 'tag-management' && selectedTags.size > 0 && (
+        {false && activeTab === 'tag-management' && selectedTags.size > 0 && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900 flex items-center">
@@ -1985,9 +1989,10 @@ const WhatsAppManager: React.FC = () => {
       />
 
       {/* Bulk Messaging Modal */}
-      {showBulkMessaging && (
-        <WhatsAppBulkMessaging onClose={() => setShowBulkMessaging(false)} />
-      )}
+      <WhatsAppBulkMessaging 
+        isOpen={showBulkMessaging} 
+        onClose={() => setShowBulkMessaging(false)} 
+      />
     </div>
   );
 };

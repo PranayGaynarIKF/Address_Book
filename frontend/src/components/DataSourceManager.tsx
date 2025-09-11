@@ -284,24 +284,6 @@ const DataSourceManager: React.FC = () => {
         </button>
       </div>
 
-      {/* OAuth Configuration Notice */}
-      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-        <h4 className="font-medium text-amber-900 mb-2">⚠️ Gmail OAuth Setup Required</h4>
-        <div className="text-sm text-amber-800 space-y-2">
-          <p><strong>To add Gmail accounts, you need to configure Google OAuth credentials:</strong></p>
-          <ol className="list-decimal list-inside space-y-1 ml-4">
-            <li>Go to <a href="https://console.developers.google.com/" target="_blank" rel="noopener noreferrer" className="underline text-amber-700">Google Cloud Console</a></li>
-            <li>Create a new project or select existing one</li>
-            <li>Enable Gmail API</li>
-            <li>Create OAuth 2.0 credentials</li>
-            <li>Add redirect URI: <code className="bg-amber-100 px-1 rounded">http://localhost:4002/api/mail-accounts/oauth-callback</code></li>
-            <li>Copy the Client ID and Client Secret to your backend .env file</li>
-          </ol>
-          <p className="text-amber-700 mt-2">
-            <strong>Note:</strong> Without proper OAuth configuration, Gmail account addition will fail.
-          </p>
-        </div>
-      </div>
 
       {gmailLoading ? (
         <div className="text-center py-8">Loading Gmail accounts...</div>
@@ -403,21 +385,6 @@ const DataSourceManager: React.FC = () => {
         </div>
       </div>
 
-      {/* Instructions for mobile contacts sync */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h4 className="font-medium text-blue-900 mb-2">📱 Mobile Contacts Sync Instructions</h4>
-        <div className="text-sm text-blue-800 space-y-2">
-          <p><strong>To sync mobile contacts:</strong></p>
-          <ol className="list-decimal list-inside space-y-1 ml-4">
-            <li>Export your mobile contacts as a .vcf file</li>
-            <li>Upload the .vcf file using the "Upload VCF" button above</li>
-            <li>Go to the Ingestion page and click "Sync Mobile Contacts"</li>
-          </ol>
-          <p className="text-blue-700 mt-2">
-            <strong>Note:</strong> Without a VCF file, mobile contacts sync will fail with an error message.
-          </p>
-        </div>
-      </div>
 
       {vcfLoading ? (
         <div className="text-center py-8">Loading VCF files...</div>
